@@ -95,9 +95,4 @@ The `graphanalyzer.py` script produces several outputs in the `--output` folder.
 
 This program also produces an interactive sub-graph for each of the vOTUs contained in the whole graph. They will be placed in `single-views/vOTU_X.html`. As they contain much less nodes and edges then the whole graph, they are lighter to render and thus usable in normal computers.
 
-Each sub-graph contains the vOTU under exam in red and all its 1st-level neighbors, that are the nodes directly connected to it. Big rounded nodes are other vOTUs, while little triangular nodes are reference genomes. If present, the reference genome from which the vOTUs inherit the taxonomy is depicted in magenta. Generally nodes are aquamarine colored, while those taking part of the same viral cluster of the vOTU are colored differently. If the vOTU is 'Clustered', the user will find genomes of the same VC_z_k in orange. If the vOTU is 'Clustered/Singleton', genomes of the same VC_z are shown in yellow. If the vOTU is 'Overlap', genomes of every overlapping VC_z are shown in yellow. can hover each node with the mouse to show the attributes of that node (like Species, Accession, VC, Level, Weight, Genus, Family, Host; previously described).
-
-
-
-
-
+Each sub-graph contains the vOTU under exam in red and all its 1st-level neighbors, that are the nodes directly connected to it. Big rounded nodes are other vOTUs, while little triangular nodes are reference genomes. If present, the reference genome from which the vOTUs inherit the taxonomy is depicted in magenta. Generally nodes are aquamarine colored, while those taking part of the same viral cluster of the vOTU are colored differently. If the vOTU is 'Clustered', the user will find genomes of the same VC_z_k in orange. If the vOTU is 'Clustered/Singleton', genomes of the same VC_z are shown in yellow. If the vOTU is 'Overlap', genomes of every overlapping VC_z are shown in yellow. The user can hover each node with the mouse to show the attributes of that node (like Species, Accession, VC, Level, Weight, Genus, Family, Host; previously described).
