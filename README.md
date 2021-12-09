@@ -80,7 +80,7 @@ Below we report some step of the main algorithm to give you an idea.
 5. vOTUs that still have not inherited a taxonomy will be marked in the results table with `F`.
 
 
-## Interpretation of results
+# Interpretation of results
 
 The `graphanalyzer.py` script produces several outputs in the `--output` folder. They are briefly discussed below. 
 
