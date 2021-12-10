@@ -66,14 +66,14 @@ Below we report the main steps of the algorithm:
 1. Separate vOTUs from reference genomes.
 2. Separate vOTUs contained in the graph from the other vOTUs (that is: remove `Singleton`s). vOTUs that are not cotained in the graph can't inherit a taxonomy and will be marked in the results table as `G`. 
 3. Iterate trough each vOTU in the graph that has not inherited a taxonomy yet.
-    3.1 Retrive all its 1st-level neighbors (that are: nodes directly connected with one edge).
-    3.2 Retrive all the sequences grouped inside the same VC_z/VC_z_k based on the Status:
+    3.1. Retrive all its 1st-level neighbors (that are: nodes directly connected with one edge).
+    3.2. Retrive all the sequences grouped inside the same VC_z/VC_z_k based on the Status:
         1. If `Outlier` there is nothing to do (because it never falls inside a VC_z/VC_z_k)
         2. If `Clustered` get the sequences that share the same subcluster (VC_z_k).
         3. If `Clustered/Singleton` get the sequences that share the same cluster (VC_z).
         4. If `Overlap` get the sequences inside all the given equivalent clusters (VC_z1, VC_z2, etc.)
-    3.3 Retrive the list of sequences clustered together and 1st-level neighbors, ordered by weight.
-    3.4 If a reference genome exist inside this list, inherit the taxonomy from the first one (heavier weight) and exit. This vOTU will be marked as `XCn` in the results table, were `X` referes to the numer of the iteration (for example, in the first iteration, `X` = 1) and `n` is the order of the first reference genome inside this list. 
+    3.3. Retrive the list of sequences clustered together and 1st-level neighbors, ordered by weight.
+    3.4. If a reference genome exist inside this list, inherit the taxonomy from the first one (heavier weight) and exit. This vOTU will be marked as `XCn` in the results table, were `X` referes to the numer of the iteration (for example, in the first iteration, `X` = 1) and `n` is the order of the first reference genome inside this list. 
     5. If no reference genome is found, get the list of all 1st-level neighbors, ordered by weight. 
     6. If a reference genome exist inside this second list, inherit the taxonomy from the first one (heavier weight) and exit. This vOTU will be marked as `XNn` in the results table, were `X`=1 and `n` is the order of the first reference genome inside this list. 
 4. Repeat everything again considering as reference genomes also the vOTUs that have previously inherited a taxonomy. New classified vOTU will be marked in the results table as `XCn` or `XNn` with `X`=2, 3, etc depending on the iterations done. Stop the iterations and exit when no new classifications are done. 
