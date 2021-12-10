@@ -73,9 +73,9 @@ Below we report the main steps of the algorithm:
         3. If `Clustered/Singleton` get the sequences that share the same cluster (VC_z).
         4. If `Overlap` get the sequences inside all the given equivalent clusters (VC_z1, VC_z2, etc.)
     3. Compute the list of the sequences that are both clustered together AND 1st-level neighbors. Order the list by weight.
-    4. If a reference genome exist inside this list, inherit the taxonomy from the first one (heavier weight) and exit. This vOTU will be marked as `XCn` in the results table, were `X` referes to the numer of the iteration (for example, in the first iteration, `X` = 1) and `n` is the order of the first reference genome inside this list. 
+    4. If a reference genome exist inside this list, inherit the taxonomy from the first one (heavier weight) and exit. This vOTU will be marked as `XCn` in the results table, were `X`=1) and `n` is the order of the first reference genome inside this list. 
     5. If no reference genome is found, compute a new list with all sequences that are JUST 1st-level neighbors. Order this new list by weight. 
-    6. If a reference genome exist inside this second list, inherit the taxonomy from the first one (heavier weight) and exit. This vOTU will be marked as `XNn` in the results table, were `X`=1 and `n` is the order of the first reference genome inside this list. 
+    6. If a reference genome exist inside this second list, inherit the taxonomy from the first one (heavier weight) and exit. This vOTU will be marked as `XNn` in the results table, were `X`=1 and `n` is the order of the first reference genome inside this second list. 
 4. Repeat everything again considering as reference genomes also the vOTUs that have previously inherited a taxonomy. New classified vOTU will be marked in the results table as `XCn` or `XNn` with `X`=2, 3, etc depending on the iterations done. Stop the iterations and exit when no new classifications are done. 
 5. vOTUs that still have not inherited a taxonomy will be marked in the results table with `F`.
 
