@@ -1,6 +1,6 @@
 # Coded by Gioele Lazzari (gioele.lazzari@univr.it)
 software = "graphanalyzer.py"
-version = "1.1"
+version = "1.2"
 
 
 # import system libraries:
@@ -8,6 +8,7 @@ import sys, os, io, argparse, logging, textwrap
 from operator import itemgetter
 from copy import deepcopy
 import pickle
+import statistics as stats
 
 
 # define a function to communicate with the console with colors: 
@@ -89,12 +90,17 @@ try:
 except ImportError:
     consoleout('error' , "The networkx or scipy library was not found.")
 try: 
+    from networkx.drawing.layout import spring_layout
     from networkx.drawing.nx_agraph import graphviz_layout
     # This import requires:
     # Mac: conda install graphviz==2.42.3=h055b950_2 -c conda-forge
     # Mac: conda install pygraphviz==1.6=py37hd4be98e_1 -c conda-forge
 except ImportError:
     consoleout('error', "The pygraphviz library was not found.") 
+try:
+    import holoviews as hv
+except ImportError:
+    consoleout('error', "The holoviews library was not found.")
 try:
     import hvplot.networkx as hvnx
     import hvplot.pandas # hvPlot dynamically adds the Pandas .hvplot() method.
@@ -518,6 +524,32 @@ def clusterExtractor(graph, csv_edit, output_path, string_suffix):
     results = results.sort_values(by=['Scaffold'])
 
 
+    # Save the original version in Excel (just for help in the developing):
+    results.to_excel(output_path + "results_vcontact2_NOCUT_" + string_suffix + ".xlsx")
+
+
+    # Cut taxonomy at a level dependent of the "confidence" of the assignment:
+    def taxonomyCutter(results):
+        # create a true copy of the dataframe
+        res = deepcopy(results)
+        for index, row in res.iterrows():
+            # We decided to stop at:
+            # Genus for Subclusters;
+            # Subfamily (if exists, otherwise Family) for Clusters;
+            # Order for 'N' (Outliers).
+            if "C" in row.Level and row.Status == "Clustered":
+                continue # the best case: keep everything
+            elif "C" in row.Level and (row.Status == "Clustered/Singleton" or "Overlap" in row.Status):
+                res.at[index,'Genus'] = "O" # Please note: "O" stands for "omitted".
+            elif "N" in row.Level :
+                res.at[index,'Genus'] = "O" 
+                res.at[index,'Subfamily'] = "O"
+                res.at[index,'Family'] = "O"
+        return res
+    results = taxonomyCutter(results)
+    consoleout("okay", "Finished to refine taxonomy levels.")
+
+
     # Now we want to save results dataframe into 4 different formats:
     # Formats are: 1) html widget; 2) csv file; 3) Excel file; 4) MultiQC custom table.
 
@@ -553,7 +585,7 @@ def clusterExtractor(graph, csv_edit, output_path, string_suffix):
 
 
 
-def plotCreatorGraphvizHoloviews(graph, csv_edit, results, output_path, string_suffix):
+def plotCreatorGraphvizHoloviews(graph, csv_edit, results, output_path, string_suffix, max_weight):
 
     # less problematic when called as variable
     csv_edit = csv_edit.rename(columns={"VC Subcluster": "VCSubcluster"})
@@ -774,6 +806,9 @@ def plotCreatorGraphvizHoloviews(graph, csv_edit, results, output_path, string_s
         # the following is just debugging purposes:
         debug_mode = False
         if debug_mode == True:
+            if(scaffold == "vOTU_1"): # - Clustered 1C1 ("all to all")
+                with open(output_path + 'debugging_vOTU_1.bin', 'wb') as vOTU_1_file: # wb = write binary.
+                    pickle.dump(sview_graph, vOTU_1_file)
             if(scaffold == "vOTU_5"): # - Clustered/Singleton 1C1
                 with open(output_path + 'debugging_vOTU_5.bin', 'wb') as vOTU_5_file: # wb = write binary.
                     pickle.dump(sview_graph, vOTU_5_file)
@@ -798,6 +833,12 @@ def plotCreatorGraphvizHoloviews(graph, csv_edit, results, output_path, string_s
             if(scaffold == "vOTU_30"): # - Outlier 1N4
                 with open(output_path + 'debugging_vOTU_30.bin', 'wb') as vOTU_30_file: # wb = write binary.
                     pickle.dump(sview_graph, vOTU_30_file)
+            if(scaffold == "vOTU_35"): # - Clustered 1C2 and rich subgraph
+                with open(output_path + 'debugging_vOTU_35.bin', 'wb') as vOTU_35_file: # wb = write binary.
+                    pickle.dump(sview_graph, vOTU_35_file)
+            if(scaffold == "vOTU_42"): # - Clustered (some not-sub-clustered in the same figure)
+                with open(output_path + 'debugging_vOTU_42.bin', 'wb') as vOTU_42_file: # wb = write binary.
+                    pickle.dump(sview_graph, vOTU_42_file)
             if(scaffold == "vOTU_51"): # - Outlier 1N1
                 with open(output_path + 'debugging_vOTU_51.bin', 'wb') as vOTU_51_file: # wb = write binary.
                     pickle.dump(sview_graph, vOTU_51_file)
@@ -822,6 +863,9 @@ def plotCreatorGraphvizHoloviews(graph, csv_edit, results, output_path, string_s
             if(scaffold == "vOTU_100"): # - Overlap 1N3
                 with open(output_path + 'debugging_vOTU_100.bin', 'wb') as vOTU_100_file: # wb = write binary.
                     pickle.dump(sview_graph, vOTU_100_file)
+            if(scaffold == "vOTU_109"): # - problems while coloring
+                with open(output_path + 'debugging_vOTU_109.bin', 'wb') as vOTU_109_file: # wb = write binary.
+                    pickle.dump(sview_graph, vOTU_109_file)
             if(scaffold == "vOTU_114"): # - Clustered/Singleton 1N4
                 with open(output_path + 'debugging_vOTU_114.bin', 'wb') as vOTU_114_file: # wb = write binary.
                     pickle.dump(sview_graph, vOTU_114_file)
@@ -846,7 +890,7 @@ def plotCreatorGraphvizHoloviews(graph, csv_edit, results, output_path, string_s
 
         print("Now generating the " + scaffold + " subgraph.")   
         """
-        START copy
+        START paste
         """
         # Extract attributes of the current scaffold (vOTU):
         scaff_Type      = sview_graph.nodes[scaffold]["A0_Type"]
@@ -854,18 +898,82 @@ def plotCreatorGraphvizHoloviews(graph, csv_edit, results, output_path, string_s
         scaff_Status    = sview_graph.nodes[scaffold]["A3_Status"]
         scaff_VC        = sview_graph.nodes[scaffold]["A4_VC"]
         scaff_Level     = sview_graph.nodes[scaffold]["A5_Level"]
-        
+
         if scaff_Status == "Singleton" or scaff_Level == 'G':
             consoleout("error", "There shouldn't be 'G' scaffolds at this point. Contact the developer.")
-        
-        # compute position for all neighbors + scaffold nodes.
-        sview_pos = graphviz_layout(sview_graph, prog="sfdp",  args='-Goverlap=true')
 
-        # draw edges:
-        sview_image = hvnx.draw_networkx_edges(sview_graph, pos=sview_pos, 
-                            edge_width=0.1, alpha=0.9, 
-                            width=800, height=650)
-        
+
+        # Calculate position of all nodes and edges with spring_layout(): 
+        # (APPROXIMATELY, the higher is 'weight' attribute, the shorter is edge length) 
+        sview_pos = spring_layout(sview_graph, weight='weight')
+
+
+        # try to set the theme:
+        hv.renderer('bokeh').theme = 'dark_minimal'
+        # draw empty graph 1000x650:
+        sview_image = hvnx.draw_networkx(sview_graph, pos=sview_pos, 
+                            edgelist=[], nodelist=[],  
+                            width=1000, height=650)
+
+
+        # update the attribute 'A6_Weight' for every node:
+        for node in sview_graph: # here node is a string !
+            attrs = {} # a dict.
+            if node == scaffold: attrs = {node: {"A6_Weight": "origin"}}
+            else: attrs = {node: {"A6_Weight": str(round(sview_graph[scaffold][node]["weight"],1))}}
+            net.set_node_attributes(sview_graph, attrs)
+
+
+        # Now we want to draw all the edges:
+        # Drawing edges one-by-one is too slow and generates too heavy .html files:
+        """
+        for edge in sview_graph.edges.data("weight"): # (nodeA, nodeB, weight)
+            sview_image = sview_image * hvnx.draw_networkx_edges(
+                    sview_graph, pos=sview_pos, edgelist=[(edge[0], edge[1])],
+                    edge_color='grey', # 'grey' for for testing
+                    edge_width= edge[2] / max_weight *3)
+        """
+        # Using 'cmap' and 'dim' is faster and lighter.
+        # For example 90 KB vs 1.3 MB for vOTU_1
+        """
+        sview_image = sview_image * hvnx.draw_networkx_edges(
+                sview_graph, pos=sview_pos,
+                edge_color='weight', # See https://hvplot.holoviz.org/user_guide/NetworkX.html 
+                # edge_cmap='coolwarm', # See https://matplotlib.org/stable/tutorials/colors/colormaps.html
+                edge_cmap='brg',
+                # Normalize width to max_weight, and *3 to make thicker lines:
+                edge_width=hv.dim('weight') / max_weight *3 )
+        """
+        # Another strategy could be to pass to 'edge_color' and 'edge_width' of hvnx.draw_networkx_edges
+        # an ordered list (color_list, width_list). But we begin creating a list of dict, 
+        # because it's sortable based on some key (for future uses). Starting from the list of dict we'll
+        # create the necessary lists (color_list, width_list, ...).
+        edge_list = [] # list of dict
+        for edge in sview_graph.edges.data("weight"): # (nodeA, nodeB, weight)
+            curr_dict = {'pairs': None, 'weight': None, 'width': None, 'color': None, 'alpha': None} 
+            curr_dict['pairs'] = (edge[0], edge[1]) # 'Tuples' are written with round brackets.
+            curr_dict['weight'] = edge[2]
+            curr_dict['width'] = edge[2] / max_weight *6 # '*6' as a scaling factor.
+            curr_dict['alpha'] = 0.3 if edge[2] / max_weight < 0.3 else 1.0
+            # This is a "3-point" gradient, and thus below we use (255*2).
+            # The 3 points are: (0,255,255) ; (255,255,0) ; (255,0,0)
+            factor = int(round(edge[2] /max_weight * (255*2)))
+            if (factor <= 255): curr_dict['color'] = "#%02x%02x%02x" % (factor, 255, 255-factor)
+            else: curr_dict['color'] = "#%02x%02x%02x" % (255, 255-(factor-255), 0)
+            edge_list.append(curr_dict) # finally append the dict
+        # convert the list of dict to the necessary lists (color_list, width_list, ...).
+        pairs_list, width_list ,color_list, alpha_list = [], [], [], []
+        for edge in edge_list: 
+            pairs_list.append(edge['pairs'])
+            width_list.append(edge['width'])
+            color_list.append(edge['color'])
+            alpha_list.append(edge['alpha'])
+        # Draw all the edges:
+        sview_image = sview_image * hvnx.draw_networkx_edges(
+                sview_graph.edge_subgraph(pairs_list), pos=sview_pos, edgelist=pairs_list,
+                edge_color=color_list, edge_width=width_list, alpha=alpha_list)
+
+
 
         for node in sview_graph: # here node is a string !
 
@@ -879,15 +987,15 @@ def plotCreatorGraphvizHoloviews(graph, csv_edit, results, output_path, string_s
             # Properties of this node:
             curr_shape = ""
             curr_size  = 0
-            curr_color = "aquamarine"
+            curr_color = "orchid"
 
             # Distinguish between "Scaffold" and "Reference":
             if curr_Type == "Scaffold":
                 curr_shape = "circle"
-                curr_size = 300
+                curr_size = 400
             elif curr_Type == "Reference": 
                 curr_shape = "triangle"
-                curr_size = 200
+                curr_size = 400
             else:
                 consoleout("error", "Strange A0_Type when determining the node's shape.")
 
@@ -950,28 +1058,54 @@ def plotCreatorGraphvizHoloviews(graph, csv_edit, results, output_path, string_s
                     if "Overlap" in scaff_Status or scaff_Status == "Clustered/Singleton":
                         curr_color = "yellow" 
                     else: 
-                        curr_color = "orange"
+                        curr_color = "darkorange"
+
+
+            # Add Cluster's nodes when in the Subcluster mode:
+            # So we have to consider the 3 cases: 'Clustered', 'Clustered/Singleton', 'Overlap'. 
+            if scaff_Status == "Clustered" and (curr_Status == "Clustered" or curr_Status == "Clustered/Singleton"):
+                if (("VC_" + scaff_VC.split('_')[1] + "_") in curr_VC) and (curr_VC != scaff_VC): 
+                    curr_color = "yellow" 
+            elif scaff_Status == "Clustered" and ("Overlap" in curr_Status):
+                # Keep in mind that it's a string like "Overlap (VC_4/VC_412/VC_41)""
+                if (("VC_" + scaff_VC.split('_')[1] + "/") in curr_Status): 
+                    curr_color = "yellow" 
+                elif (("VC_" + scaff_VC.split('_')[1] + ")") in curr_Status): 
+                    curr_color = "yellow" 
 
 
             # understand if this node determines the taxonomy of the current 'scaffold':
             # this if statement picks up only 'References'. So we'll have just 1 magenta triangle.
             if scaff_Accession == curr_Accession and curr_Type == "Reference":
-                curr_color = "magenta"
+                curr_color = "limegreen"
             
             # check if this is current vOTU:
             if node == scaffold:
-                curr_color = "red"
+                curr_color = "orangered"
 
             # draw this node:
             sview_image = sview_image * hvnx.draw_networkx_nodes(
                     sview_graph.subgraph([node]), pos=sview_pos, 
                     node_color=curr_color, node_shape=curr_shape, node_size=curr_size, 
-                    alpha=0.9, linewidths=0.0)
+                    alpha=1.0, linewidths=1.0)
+
 
         # save this interactive subgraph:
         hvnx.save(sview_image, desired_path + scaffold + '.html')
+
+        # add some html tags to help the user:
+        file = open(desired_path + scaffold + '.html', "r")
+        wholetext = file.read(); file.close() # always close file streams!
+        tags = textwrap.dedent("""
+        <body><p>Interactive plot generated with <strong>graphanalyzer.py</strong>. Please wait the loading.</p>
+        <p>User guide available at <a href="https://www.github.com/lazzarigioele/graphanalyzer/">github.com/lazzarigioele/graphanalyzer</a>.</p>
+        <p>Bugs can be reported to <a href= "mailto:gioele.lazzari@univr.com">gioele.lazzari@univr.com</a>.</p>
+        """)
+        file = open(desired_path + scaffold + '.html', "w")
+        file.write(wholetext.replace("<body>", tags))
+        file.close() # always close file streams!
         """
-        END copy
+        END paste
         """
 
     consoleout("okay", "Finished to generate the  neighbors-based plot for each vOTUs.")
@@ -1106,7 +1240,7 @@ def fillWithMetas(csv , metas, output_path, string_suffix):
 
             def scroll_linealogy(lin, suff): # function to find term with correspondent suffix in linealogy (list).
                 cnt = 0
-                got = None # Maybe it could be better to replace None with "Unclassified"
+                got = "n.a." # Maybe it could be better to replace "n.a." with somthing more specific.
                 for x in lin:
                     if x.endswith(suff):
                         cnt += 1
@@ -1191,6 +1325,20 @@ if __name__ == "__main__":
 
     # Load the graph_table into a networkx.Graph(). 
     graph = net.read_edgelist(graph_table, nodetype=str, data=(('weight',float),), create_using=net.Graph())
+    graph_table.close()
+
+    # Calculate the arrows' weight distribution:
+    graph_table = open(parameters.graph, 'r')
+    arrows = pnd.read_csv(graph_table, header = None, sep=' ')
+    global_weights = list(arrows[2])
+    """
+    print("global_weights len: ", len(global_weights))
+    print("global_weights MAX: ", max(global_weights))
+    print("global_weights min: ", min(global_weights))
+    print("global_weights mean: ", stats.mean(global_weights))
+    print("global_weights mode: ", stats.mode(global_weights))
+    print("global_weights median: ", stats.median(global_weights))
+    """
     
     # 1st PART:
     # Here we want to fill the vConTACT2 csv output with the metas (taxonomy, etc) provided by INPHARED:
@@ -1228,7 +1376,7 @@ if __name__ == "__main__":
     
     # 3rd PART:
     # generate a general plot with all reference genomes and viral scaffolds:
-    image_graph = plotCreatorGraphvizHoloviews(graph, csv_edit, df_results, parameters.output, parameters.suffix) 
+    image_graph = plotCreatorGraphvizHoloviews(graph, csv_edit, df_results, parameters.output, parameters.suffix, max(global_weights)) 
 
 
     # 4th PART:
