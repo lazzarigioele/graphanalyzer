@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Coded by Gioele Lazzari (gioele.lazzari@univr.it)
 software = "graphanalyzer.py"
-version = "1.2"
+version = "1.2.1"
 
 
 # import system libraries:
