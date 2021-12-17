@@ -109,4 +109,8 @@ Nodes are disposed approximately respecting the edges' weight. This tend to spat
 
 ![color_scale.png](assets/color_scale.png)
 
-We suggest to use the "scroll-to-zoom" tool in the toolbox, to zoom in and out the sub-graph. We suggest also to click on a desired node to show only the edges starting from that node, hiding all the ramaining. The drak background lets the user better isolate edges when clicking on the desired node.
+We suggest to use the "scroll-to-zoom" tool in the toolbox, to zoom in and out the sub-graph. We suggest also to click on a desired node to show only the edges starting from that node, hiding all the ramaining. The dark background lets the user better isolate edges when clicking on the desired node.
+
+# Bugs and future versions
+
+Bugs can be reported to gioele.lazzari@univr.it. Future versions of graphanalyzer will be available at www.github.com/lazzarigioele/graphanalyzer/releases.
