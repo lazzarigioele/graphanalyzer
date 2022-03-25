@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Coded by Gioele Lazzari (gioele.lazzari@univr.it)
 software = "graphanalyzer.py"
-version = "1.2.1"
+version = "1.2.2"
 
 
 # import system libraries:
@@ -1100,7 +1100,7 @@ def plotCreatorGraphvizHoloviews(graph, csv_edit, results, output_path, string_s
         tags = textwrap.dedent("""
         <body><p>Interactive plot generated with <strong>graphanalyzer.py</strong>. Please wait the loading.</p>
         <p>User guide available at <a href="https://www.github.com/lazzarigioele/graphanalyzer/">github.com/lazzarigioele/graphanalyzer</a>.</p>
-        <p>Bugs can be reported to <a href= "mailto:gioele.lazzari@univr.com">gioele.lazzari@univr.com</a>.</p>
+        <p>Bugs can be reported to <a href= "mailto:gioele.lazzari@univr.it">gioele.lazzari@univr.it</a>.</p>
         """)
         file = open(desired_path + scaffold + '.html', "w")
         file.write(wholetext.replace("<body>", tags))
