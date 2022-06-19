@@ -1306,7 +1306,9 @@ if __name__ == "__main__":
         metas_table = open(parameters.metas, 'r') 
     except RuntimeError:
         consoleout('error', "Can't find the --metas passed as %s." % parameters.metas)
+    
     consoleout('okay', 'Each required input file seems correctly loaded.')
+
     # Now we want to check if the goodness of the filepath provided. 
     if (os.path.isdir(parameters.output) == False): # if it's not a folder:
         if (os.path.isfile(parameters.output) == True): # if it's file:
