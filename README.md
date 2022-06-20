@@ -206,11 +206,11 @@ N-type Level means that `graphanalyzer.py` tried to obtain the list of nodes dir
 
 The "Nx" notation follows the same mechanism of the "Cx" notation: focusing on vOTU_100 as example, the first reference genome was at the third position, and this is the meaning of "3" in the "N3" notation. Consequently, 2 heavier-weight edges were connecting other vOTUs (again, you can quickly identify them opening the "single_view" for vOTU_100).
 
-As reported in the above sections, taxonomy in the results table is cut to the Family since there is more uncertainty at lower levels. This is in line with what is suggested in the vConTACT2's user guide: 
+As reported in the above sections, if Level is of "Nx" type, than taxonomy is cut to Family, since there is more uncertainty at lower levels. Each cut level is reported with "O" (that stands for _"Omitted"_). This is in line with what is suggested in the vConTACT2's user guide: 
 
 > If there are no reference genomes in the same VC or VC subcluster, then it's likely that they are not related at the genus level at all. That said, it is possible they could be related at a higher taxonomic level (subfamily, family, order).
 
-So, if Level is of "Nn" type, than taxonomy is cut to Family level. Each cut level is reported with "O" (that stands for _"Omitted"_).
+Finally, we want to spend few words on reliability of taxonomical classifications. The reliability can be assessed watching 3 columns of the results table: "Status", "Level", and "Weight". The more reliable classifications have "Status" Clustered, "Level" Cx, and high weight. The less reliable classifications have "Level" Nx, and low weight. Several different combinations lay in between, and the respective taxonomy is cut accordingly, as already reported above. Keep in mind that the weight is itself is a score of how much the "Closer" reference genome is related to the vOTU, and it is computed by vConTACT2. More specifically, the weigth is based on the number of shared protein clusters between two genomes (refer to the [original paper](https://doi.org/10.1038/s41587-019-0100-8) if you need more info). That said, you can sort the results table using the columns "Status", "Level", and "Weight", according to your needs. 
 
 ## Bugs and future versions
 
