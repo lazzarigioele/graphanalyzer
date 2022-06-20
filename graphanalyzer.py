@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Coded by Gioele Lazzari (gioele.lazzari@univr.it)
 software = "graphanalyzer.py"
-version = "1.2.2"
+version = "1.3"
 
 
 # import system libraries:
@@ -116,6 +116,49 @@ except ImportError:
     consoleout('error', "The panel library was not found.")
 
 
+
+
+def v1_3_patch(results, output_path):
+    """
+    Block the algorithm at 1st iteration. So >=2Cx and >=2Nx become A.
+
+    Rationale: we can't connect vOTU_A to vOTU_C given this obligate path: vOTU_A-vOTU_B-vOTU_C.
+    In fact, if vOTU_A and vOTU_C were somehow related, then they should have been directly connected.
+    (even if with a low-weight edge). Therefore, is wrong to exend the algorithm to >=2Cx and >=2Nx.
+    """
+    for index, row in results.iterrows():
+    
+        level = results.at[index,'Level']
+        if   'C' in level: 
+            iteration = level.split('C')[0]
+            newlevel = 'C' + level.split('C')[1]
+        elif 'N' in level:
+            iteration = level.split('N')[0]
+            newlevel = 'N' + level.split('N')[1]
+        elif level=='G' or level=='F':
+            continue
+        results.at[index,'Level'] = newlevel
+        
+        
+        if iteration != '1': 
+            newlevel = 'A'
+            results.at[index,'Level'] = newlevel
+            
+            results.at[index,'Closer'] = "n.a."
+            results.at[index,'Accession'] = "n.a."
+            results.at[index,'Weight'] = "n.a."
+            results.at[index,'Host'] = "n.a."
+            
+            results.at[index,'BaltimoreGroup'] = "n.a."
+            results.at[index,'Realm'] = "n.a."
+            results.at[index,'Kingdom'] = "n.a."
+            results.at[index,'Phylum'] = "n.a."
+            results.at[index,'Class'] = "n.a."
+            results.at[index,'Order'] = "n.a."
+            results.at[index,'Family'] = "n.a."
+            results.at[index,'Subfamily'] = "n.a."
+            results.at[index,'Genus'] = "n.a."
+    return results
 
 
 
@@ -525,6 +568,12 @@ def clusterExtractor(graph, csv_edit, output_path, string_suffix):
     results = results.sort_values(by=['Scaffold'])
 
 
+    ###############################################################
+    # graphanalyzer.py patch before mSystems submission. ##########
+    results = v1_3_patch(results, output_path) #################################
+    ###############################################################
+
+
     # Save the original version in Excel (just for help in the developing):
     results.to_excel(output_path + "results_vcontact2_NOCUT_" + string_suffix + ".xlsx")
 
@@ -545,10 +594,10 @@ def clusterExtractor(graph, csv_edit, output_path, string_suffix):
             elif "N" in row.Level :
                 res.at[index,'Genus'] = "O" 
                 res.at[index,'Subfamily'] = "O"
-                res.at[index,'Family'] = "O"
+                # res.at[index,'Family'] = "O"
         return res
     results = taxonomyCutter(results)
-    consoleout("okay", "Finished to refine taxonomy levels.")
+    consoleout("okay", "Finished to cut taxonomy levels.")
 
 
     # Now we want to save results dataframe into 4 different formats:
@@ -563,7 +612,7 @@ def clusterExtractor(graph, csv_edit, output_path, string_suffix):
     # 3) save results as a csv file: 
     results.to_excel(output_path + "results_vcontact2_" + string_suffix + ".xlsx")
 
-    # 4) Save results as a MultiQC custom table:
+    # 4) Save results as a MultiQC custom table (return the object and save in 4th step):
     # First, add the custom MultiQC header to the final string "content":
     content = textwrap.dedent("""
     # id: 'taxotab'
@@ -889,7 +938,7 @@ def plotCreatorGraphvizHoloviews(graph, csv_edit, results, output_path, string_s
                 with open(output_path + 'debugging_vOTU_159.bin', 'wb') as vOTU_159_file: # wb = write binary.
                     pickle.dump(sview_graph, vOTU_159_file)
 
-        print("Now generating the " + scaffold + " subgraph.")   
+        print("Now generating the " + scaffold + " subgraph.", end='\r')   
         """
         START paste
         """
@@ -1290,33 +1339,27 @@ if __name__ == "__main__":
     --suffix      assemblerX \
     --preprocessed ./testoutput/csv_edit_assemblerX.bin 
     """
+
     # get the parameters from argparser:
     parameters = parser.parse_args()
 
     # check the presence of passed files:
-    try:
-        graph_table = open(parameters.graph, 'r') 
-    except RuntimeError:
-        consoleout('error', "Can't find the --graph passed as %s." % parameters.graph)
-    try:
-        csv_table = open(parameters.csv, 'r') 
-    except RuntimeError:
-        consoleout('error', "Can't find the --csv passed as %s." % parameters.csv)
-    try:
-        metas_table = open(parameters.metas, 'r') 
-    except RuntimeError:
-        consoleout('error', "Can't find the --metas passed as %s." % parameters.metas)
-    
+    try: graph_table = open(parameters.graph, 'r') 
+    except RuntimeError: consoleout('error', "Can't find the --graph passed as %s." % parameters.graph)
+    try: csv_table = open(parameters.csv, 'r') 
+    except RuntimeError: consoleout('error', "Can't find the --csv passed as %s." % parameters.csv)
+    try: metas_table = open(parameters.metas, 'r') 
+    except RuntimeError: consoleout('error', "Can't find the --metas passed as %s." % parameters.metas)
     consoleout('okay', 'Each required input file seems correctly loaded.')
 
-    # Now we want to check if the goodness of the filepath provided. 
+    # Now we want to check the goodness of the filepath provided. 
     if (os.path.isdir(parameters.output) == False): # if it's not a folder:
-        if (os.path.isfile(parameters.output) == True): # if it's file:
+        if (os.path.isfile(parameters.output) == True): # it's file:
             consoleout('error', "Seems that --output passed as %s is a file and not a folder." % parameters.output)
         else: # it's a folder, but not yet created. 
             consoleout('error', "Seems that --output passed as %s doesn't exist." % parameters.output) 
 
-    # Now we try to load the graph_table into a NetoworkX object. From many types, we choose Graph:
+    # Now we try to load the graph_table into a networkx.Graph() with weighted edges.
     """
     from: https://networkx.github.io/documentation/stable/reference/classes/index.html#which-graph-class-should-i-use
     Networkx Class      Type            Self-loops allowed      Parallel edges allowed
@@ -1325,24 +1368,9 @@ if __name__ == "__main__":
     MultiGraph          undirected      Yes                     Yes
     MultiDiGraph        directed        Yes                     Yes
     """
-
-    # Load the graph_table into a networkx.Graph(). 
     graph = net.read_edgelist(graph_table, nodetype=str, data=(('weight',float),), create_using=net.Graph())
-    graph_table.close()
 
-    # Calculate the arrows' weight distribution:
-    graph_table = open(parameters.graph, 'r')
-    arrows = pnd.read_csv(graph_table, header = None, sep=' ')
-    global_weights = list(arrows[2])
-    """
-    print("global_weights len: ", len(global_weights))
-    print("global_weights MAX: ", max(global_weights))
-    print("global_weights min: ", min(global_weights))
-    print("global_weights mean: ", stats.mean(global_weights))
-    print("global_weights mode: ", stats.mode(global_weights))
-    print("global_weights median: ", stats.median(global_weights))
-    """
-    
+
     # 1st PART:
     # Here we want to fill the vConTACT2 csv output with the metas (taxonomy, etc) provided by INPHARED:
     # Developer could already provide the csv_edit table, just for the sake of speeding up the execution time:
@@ -1356,15 +1384,13 @@ if __name__ == "__main__":
         csv = pnd.read_csv(csv_table, header = 0)
         metas = pnd.read_csv(metas_table, header = 0, sep='\t')
 
-        # These should be all our vOTUs (just a list of their names):
-        votus = csv[csv['Genome'].str.contains('vOTU')]['Genome'].tolist()
-        # These should be all vOTUs contained in the graph:
-        votus_ingraph = [votu for votu in votus if graph.has_node(votu) == True ]
-        # Here we want ot check how many vOTU are there in 'csv'.
+        # These should be all our vOTUs (just a list of their names). These are the vOTUs contained in the "csv".
         # This should be equivalent to 'grep -Eo "vOTU_.*?," genome_by_genome_overview.csv | sort | uniq | wc -l'
+        votus = csv[csv['Genome'].str.contains('vOTU')]['Genome'].tolist()
         consoleout("okay", "There are " + str(len(votus)) + " vOTU in input.")
-        # Here we want ot check how many vOTU are there in 'metas'.
+        # These should be all vOTUs contained in the graph:
         # This should be equivalent to 'grep -Eo "vOTU_.*? " c1.ntw | sort | uniq | wc -l'
+        votus_ingraph = [votu for votu in votus if graph.has_node(votu) == True ]
         consoleout("okay", str(len(votus_ingraph)) + " vOTU are contained in the graph.")
 
         # fill the vConTACT2 csv output with the taxonomy provided by INPHARED:
@@ -1379,6 +1405,13 @@ if __name__ == "__main__":
     
     # 3rd PART:
     # generate a general plot with all reference genomes and viral scaffolds:
+    # Edgse' color and width are relative to the weight. So here we first need to compute the max_weight.
+    # This way, colors and widths will be RELATIVE to the current maximum.
+    graph_table.close() # It was still opened for the networkx.Graph() creation.
+    graph_table = open(parameters.graph, 'r')
+    arrows = pnd.read_csv(graph_table, header = None, sep=' ')
+    global_weights = list(arrows[2]) # get all weights in a list
+    consoleout("okay", "Max weight here is %f." % max(global_weights))
     image_graph = plotCreatorGraphvizHoloviews(graph, csv_edit, df_results, parameters.output, parameters.suffix, max(global_weights)) 
 
 
@@ -1393,3 +1426,28 @@ if __name__ == "__main__":
     columnar_panel = pnl.Column(title_pane, graph_pane, table_pane)
     columnar_panel.save(parameters.output + 'panel_graph_' + parameters.suffix + '.html', resources=INLINE)
     consoleout("okay", "Finished to generate the panel app.")
+
+
+    # Info on generated files:
+    # 1st part: csv_edit_xxx.bin, 
+    #           csv_edit_xxx.xlsx
+    # 2nd part: results_vcontact2_NOCUT_xxx.xlsx, 
+    #           results_vcontact2_xxx.csv, 
+    #           results_vcontact2_xxx.xlsx, 
+    #           custom_taxonomy_table_xxx_mqc.txt.
+    #           the LOG
+    # 3rd part: graph_layout_xxx.html,
+    #           graph_layout_xxx_mqc.html
+    #           single_views_xxx/...
+    # 4th part: panel_graph_xxx.html
+
+
+    # 5th part: remove useless files (even if they do not exist)
+    try: os.remove(parameters.output + 'csv_edit_' + parameters.suffix  + '.bin')
+    except OSError: pass
+    try: os.remove(parameters.output + 'graph_layout_' + parameters.suffix  + '_mqc.html')
+    except OSError: pass
+    try: os.remove(parameters.output + 'graph_layout_' + parameters.suffix  + '.html')
+    except OSError: pass
+    try: os.remove(parameters.output + 'panel_graph_' + parameters.suffix  + '.html')
+    except OSError: pass
