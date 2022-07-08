@@ -5,7 +5,7 @@ version = "1.3"
 
 
 # import system libraries:
-import sys, os, io, argparse, logging, textwrap
+import sys, os, io, argparse, logging, textwrap, time, datetime
 from operator import itemgetter
 from copy import deepcopy
 import pickle
@@ -1340,6 +1340,8 @@ if __name__ == "__main__":
     --preprocessed ./testoutput/csv_edit_assemblerX.bin 
     """
 
+    print(f"Starting graphanalyzer.py v{version} on {datetime.datetime.now()}")
+    
     # get the parameters from argparser:
     parameters = parser.parse_args()
 
@@ -1368,7 +1370,9 @@ if __name__ == "__main__":
     MultiGraph          undirected      Yes                     Yes
     MultiDiGraph        directed        Yes                     Yes
     """
+    start_time = time.time()
     graph = net.read_edgelist(graph_table, nodetype=str, data=(('weight',float),), create_using=net.Graph())
+    consoleout('okay', '%s converted into networkx.Graph in %s s' % (parameters.graph, time.time() - start_time))
 
 
     # 1st PART:
@@ -1394,7 +1398,10 @@ if __name__ == "__main__":
         consoleout("okay", str(len(votus_ingraph)) + " vOTU are contained in the graph.")
 
         # fill the vConTACT2 csv output with the taxonomy provided by INPHARED:
+        start_time = time.time()
         csv_edit = fillWithMetas(csv, metas, parameters.output, parameters.suffix)
+        consoleout('okay', '%s updated with INPHARED db in %s s' % (parameters.csv, time.time() - start_time))
+
 
     
     # 2nd PART:
@@ -1451,3 +1458,5 @@ if __name__ == "__main__":
     except OSError: pass
     try: os.remove(parameters.output + 'panel_graph_' + parameters.suffix  + '.html')
     except OSError: pass
+
+    print(f"Ending graphanalyzer.py v{version} on {datetime.datetime.now()}")
