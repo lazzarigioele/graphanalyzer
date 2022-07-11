@@ -33,12 +33,12 @@ def consoleout(lvl, msg):
         sys.exit(1)
     elif lvl == 'warning': 
         msg = colors['WARNING'] + 'WARNING: ' + colors['ENDC'] + msg + '\n'
-        sys.stderr.write(msg)
-        sys.stderr.flush()
+        sys.stdout.write(msg)
+        sys.stdout.flush()
     elif lvl == 'okay': 
         msg = colors['OKGREEN'] + 'OKAY: ' + colors['ENDC'] + msg + '\n'
-        sys.stderr.write(msg)
-        sys.stderr.flush()
+        sys.stdout.write(msg)
+        sys.stdout.flush()
     else: 
         consoleout('error', 'consoleout() called with wrong lvl.')
     
