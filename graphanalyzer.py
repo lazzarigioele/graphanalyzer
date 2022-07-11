@@ -474,8 +474,13 @@ def clusterExtractor(graph, csv_edit, output_path, string_suffix, prefix):
                 sameclustered = pnd.DataFrame() # empty df
                 for vc in vc_list: # extract the rows and glue them together with the others
                     sameclustered = sameclustered.append(csv_edit[csv_edit['VCSubcluster'].str.startswith(vc + "_")])
+                    # handling of others Overlaps:
+                    sameclustered = sameclustered.append(csv_edit[
+                        (csv_edit['VCStatus'].str.contains('\(' + vc + '/')) | \
+                        (csv_edit['VCStatus'].str.contains('/' + vc + '/')) | \
+                        (csv_edit['VCStatus'].str.contains('/' + vc + '\)')) ])
                 sameclustered_list = sameclustered["Genome"].tolist() 
-                # sameclustered_list.remove(scaffold) # impossible!!!
+                sameclustered_list.remove(scaffold) 
 
             else:
                 consoleout("error", "Strange level found during the extraction of the cluster.")
