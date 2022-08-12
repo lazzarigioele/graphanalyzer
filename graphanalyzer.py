@@ -3,6 +3,14 @@
 software = "graphanalyzer.py"
 version = "1.4.1" 
 
+# begin the memory tracing
+import tracemalloc
+tracemalloc.start()
+current, peak = tracemalloc.get_traced_memory() # at this point, it's (0, 0)
+def getcurralloc():
+    current, peak = tracemalloc.get_traced_memory()
+    print(f"Process allocated memory: {current / 10**6} MB (peak {peak / 10**6} MB)")
+
 
 # import system libraries:
 import sys, os, io, argparse, logging, textwrap, time, datetime
@@ -11,6 +19,7 @@ from copy import deepcopy
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import pickle
 import statistics as stats
+import gc # garbage collector
 
 
 # define a function to communicate with the console with colors: 
@@ -93,6 +102,10 @@ parser.add_argument('-k', '--skipdiff',
 
 
 # load the external libraries:
+try:
+    import psutil 
+except ImportError:
+    consoleout('error', "The psutil library was not found.")
 try:
     import pandas as pnd 
 except ImportError:
@@ -673,7 +686,98 @@ def clusterExtractor(graph, csv_edit, output_path, string_suffix, prefix, skipdi
 
 
 
+def addGraphAttributes(graph, csv_edit, results, prefix): 
+
+    # less problematic when called as variable
+    csv_edit = csv_edit.rename(columns={"VC Subcluster": "VCSubcluster"})
+    csv_edit = csv_edit.rename(columns={"VC Status": "VCStatus"})
+
+    # sobstitute NA with '' to avoid future runtime errors
+    csv_edit = csv_edit.fillna('')
+
+
+    # Below we add attributes to each node in the graph. Thanks to this, the interactive
+    # visualization will be more informative (each attribute is shown when a node is hovered
+    # with the mouse).
+    attribs = {} # create empty dict:
+
+    # for each row in csv_edit, preparate a col and a dict to rename nodes
+    for index, row in csv_edit.iterrows():
+
+        # not all references in genome_by_genome_overview.csv are contained in the graph!
+        # for genomes/scaffolds not included in graph: ignore.
+        if graph.has_node(row.Genome) == False:
+            continue
+
+        # don't want to rename scaffold at this point
+        if row.Genome.startswith(prefix): # Discriminate accesions from vOTUs.
+
+            # find the corresponding vOTU in the results table:
+            matches = results[results['Scaffold'] == row.Genome]
+            if len(matches) != 1:
+                # there should be only 1 exact match
+                consoleout("error", "We have len(matches) != 1 in subgraphCreator().")
+            else:
+                # get first (and only) match:
+                match = matches.iloc[0]
+
+                # take infos from the results dataframe:
+                label= {"A0_Type": "Scaffold",
+                        "A1_Species/Closer": match.Closer,
+                        "A2_Accession": match.Accession,
+                        "A3_Status": match.Status,
+                        "A4_VC": match.VC,
+                        "A5_Level": match.Level,
+                        "A6_Weight": match.Weight,
+                        "A7_Genus": match.Genus,
+                        "A8_Family": match.Family,
+                        "A9_Host": match.Host}
+                
+                # fill the "dict of dicts":
+                attribs[row.Genome] = label
+
+        else: # here we have a reference genome:
+            
+            # take infos from the csv_edit dataframe:
+            label= {"A0_Type": "Reference",
+                    "A1_Species/Closer": row.Species,
+                    "A2_Accession": row.Accession, # commentable because the index is already the accession.
+                    "A3_Status": row.VCStatus,
+                    "A4_VC": row.VCSubcluster,
+                    "A5_Level": "-",
+                    "A6_Weight": "-",
+                    "A7_Genus": row.Genus,
+                    "A8_Family": row.Family,
+                    "A9_Host": row.Host}
+
+            # fill the "dict of dicts":
+            attribs[row.Genome] = label
+
+    # add attributes to nodes using the dict just prepared:
+    net.set_node_attributes(graph, attribs)
+
+
+
+    # extract scaffold that are in-graph 
+    results_ingraph = deepcopy(results)    # not G
+    for index, row in results.iterrows():
+        if row.Level == "G":
+            results_ingraph = results_ingraph.drop(index)
+    
+    scaffolds_ingraph = results_ingraph['Scaffold'].tolist()
+
+
+    return graph, scaffolds_ingraph
+
+
+
 def subgraph_generation(scaffold, desired_path):
+
+    current, peak = tracemalloc.get_traced_memory()
+    avail = psutil.virtual_memory().available
+    swap = psutil.swap_memory().percent
+    #consoleout('warning', f"scaffold: {scaffold} ; PID: {os.getpid()} ; Current: {current / 10**6} MB ; Available: {avail /(10**6)} MB ; SWAP: {swap}%")
+
 
     neigh = list(graph.neighbors(scaffold))
     # recreate a subgraph with: nieghbors + scaffold
@@ -886,88 +990,9 @@ def subgraph_generation(scaffold, desired_path):
 
 
 
-def subgraphCreator(graph, csv_edit, results, output_path, string_suffix, max_weight, prefix, nthreads):
+def subgraphCreator(graph, scaffolds_ingraph, output_path, string_suffix, max_weight, prefix, nthreads):
 
-    # less problematic when called as variable
-    csv_edit = csv_edit.rename(columns={"VC Subcluster": "VCSubcluster"})
-    csv_edit = csv_edit.rename(columns={"VC Status": "VCStatus"})
-
-    # sobstitute NA with '' to avoid future runtime errors
-    csv_edit = csv_edit.fillna('')
-
-
-    # PART 1.
-    # Below we add attributes to each node in the graph. Thanks to this, the interactive
-    # visualization will be more informative (each attribute is shown when a node is hovered
-    # with the mouse).
-    attribs = {} # create empty dict:
-
-    # for each row in csv_edit, preparate a col and a dict to rename nodes
-    for index, row in csv_edit.iterrows():
-
-        # not all references in genome_by_genome_overview.csv are contained in the graph!
-        # for genomes/scaffolds not included in graph: ignore.
-        if graph.has_node(row.Genome) == False:
-            continue
-
-        # don't want to rename scaffold at this point
-        if row.Genome.startswith(prefix): # Discriminate accesions from vOTUs.
-
-            # find the corresponding vOTU in the results table:
-            matches = results[results['Scaffold'] == row.Genome]
-            if len(matches) != 1:
-                # there should be only 1 exact match
-                consoleout("error", "We have len(matches) != 1 in subgraphCreator().")
-            else:
-                # get first (and only) match:
-                match = matches.iloc[0]
-
-                # take infos from the results dataframe:
-                label= {"A0_Type": "Scaffold",
-                        "A1_Species/Closer": match.Closer,
-                        "A2_Accession": match.Accession,
-                        "A3_Status": match.Status,
-                        "A4_VC": match.VC,
-                        "A5_Level": match.Level,
-                        "A6_Weight": match.Weight,
-                        "A7_Genus": match.Genus,
-                        "A8_Family": match.Family,
-                        "A9_Host": match.Host}
-                
-                # fill the "dict of dicts":
-                attribs[row.Genome] = label
-
-        else: # here we have a reference genome:
-            
-            # take infos from the csv_edit dataframe:
-            label= {"A0_Type": "Reference",
-                    "A1_Species/Closer": row.Species,
-                    "A2_Accession": row.Accession, # commentable because the index is already the accession.
-                    "A3_Status": row.VCStatus,
-                    "A4_VC": row.VCSubcluster,
-                    "A5_Level": "-",
-                    "A6_Weight": "-",
-                    "A7_Genus": row.Genus,
-                    "A8_Family": row.Family,
-                    "A9_Host": row.Host}
-
-            # fill the "dict of dicts":
-            attribs[row.Genome] = label
-
-    # add attributes to nodes using the dict just prepared:
-    net.set_node_attributes(graph, attribs)
-
-
-
-    # PART 2.
-    # Here we want to draw a neighbours-based plot for each vOTUs in graph.
-    results_ingraph = deepcopy(results)    # not G
-    for index, row in results.iterrows():
-        if row.Level == "G":
-            results_ingraph = results_ingraph.drop(index)
-    # extract scaffold that are in-graph / that have received a taxanomy / that are confident:
-    scaffolds_ingraph = results_ingraph['Scaffold'].tolist()
-
+    
     # First of all create the subfolder for storing all the subplots.
     desired_path = output_path + 'single-views_' + string_suffix + '/'
     if (os.path.isdir(desired_path) == False): # if it's not been created yet:
@@ -975,7 +1000,14 @@ def subgraphCreator(graph, csv_edit, results, output_path, string_suffix, max_we
             os.mkdir(desired_path) # make it!
         except:
             consoleout("error", "Can't create the output sub-folder '%s'. " % desired_path)
-    
+
+
+    # .total: total physical memory (exclusive swap)
+    # .available: the memory that can be given instantly to processes without the system going into swap. 
+    print(f"Now available RAM: {psutil.virtual_memory().available /(10**6)} MB")
+
+
+
     # Suggested reading https://superfastpython.com/threadpoolexecutor-vs-processpoolexecutor/ 
     # on the difference between ThreadPoolExecutor and ProcessPoolExecutor. 
     # Remember: with precesses, functions are only picklable if they are defined at the top-level of a module.
@@ -994,6 +1026,15 @@ def subgraphCreator(graph, csv_edit, results, output_path, string_suffix, max_we
         scaffold = future.result() # blocking call: wait for this task to completed
         counter += 1
         print(f"Completed subgraph {counter}/{len(scaffolds_ingraph)} ({scaffold})        ", end='\r')
+
+
+
+        current, peak = tracemalloc.get_traced_memory()
+        avail = psutil.virtual_memory().available
+        swap = psutil.swap_memory().percent
+        #consoleout('okay', f"   scaffold: {scaffold} ; PID: {os.getpid()} ; Current: {current / 10**6} MB ; Available: {avail /(10**6)} MB ; SWAP: {swap}%")
+
+
     executor.shutdown() # blocking call: wait for all tasks to complete
 
 
@@ -1015,7 +1056,13 @@ if __name__ == "__main__":
     -t 4
     """
 
-    print(f"Starting graphanalyzer.py v{version} on {datetime.datetime.now()}")
+
+    print(f"\nStarting graphanalyzer.py v{version} on {datetime.datetime.now()}\n")
+    # .total: total physical memory (exclusive swap)
+    # .available: the memory that can be given instantly to processes without the system going into swap. 
+    print(f"Physical installed / available RAM: {psutil.virtual_memory().total /(10**6)} MB / {psutil.virtual_memory().available /(10**6)} MB")
+    
+    getcurralloc()
     
     # get the parameters from argparser:
     parameters = parser.parse_args()
@@ -1049,7 +1096,8 @@ if __name__ == "__main__":
     start_time = time.time()
     graph = net.read_edgelist(graph_table, nodetype=str, data=(('weight',float),), create_using=net.Graph())
     consoleout('okay', f'{parameters.graph} converted into a Graph object in {time.time() - start_time} s.')
-
+    
+    getcurralloc()
 
 
     # 1st PART:
@@ -1080,6 +1128,8 @@ if __name__ == "__main__":
     consoleout('okay', f'{parameters.csv} updated with INPHARED db in {time.time() - start_time} s.')
     csv_edit.to_excel(parameters.output + 'csv_edit_' + parameters.suffix + '.xlsx' )# save the table!
 
+    getcurralloc()
+
 
     
     # 2nd PART:
@@ -1099,6 +1149,8 @@ if __name__ == "__main__":
         nA = len(df_results[df_results["Level"].str.startswith('A')])
         consoleout("okay", f'Taxonomy of {len(votus)} vOTUs (C:{nC}; N:{nN}; G:{nG}; F:{nF}; A:{nA}) obtained in {time.time() - start_time} s.')
     
+    getcurralloc()
+
 
     
     # 3rd PART:
@@ -1112,11 +1164,22 @@ if __name__ == "__main__":
     arrows = pnd.read_csv(graph_table, header = None, sep=' ')
     global_weights = list(arrows[2]) # get all weights in a list
     max_weight = 300
-    if max(global_weights) > max_weight:
-        consoleout("warning", f"Max weight here is > {max_weight} ({max(global_weights)}). {max_weight} will be used anyway. Please contact the developer.")
+    curr_max_weight = max(global_weights)
+    if curr_max_weight > max_weight:
+        consoleout("warning", f"Max weight here is > {max_weight} ({curr_max_weight}). {max_weight} will be used anyway. Please contact the developer.")
     consoleout("okay", f"Starting to generate {len(votus_ingraph)} subraphs with {parameters.threads} threads.")
+    
     start_time = time.time()
-    subgraphCreator(graph, csv_edit, df_results, parameters.output, parameters.suffix, max_weight, parameters.prefix, parameters.threads) 
+    # first use 'csv_edit' and 'results' to fill 'graph' with useful attributes. 
+    graph, scaffolds_ingraph = addGraphAttributes(graph, csv_edit, df_results, parameters.prefix)
+
+    getcurralloc()
+    print("Deleting old objects... ")
+    del arrows, csv, csv_edit, df_results
+    gc.collect()
+    getcurralloc()
+
+    subgraphCreator(graph, scaffolds_ingraph, parameters.output, parameters.suffix, max_weight, parameters.prefix, parameters.threads) 
     consoleout("okay", f'Generated {len(votus_ingraph)} interactive subgraphs in {time.time() - start_time} s.')
     
 
