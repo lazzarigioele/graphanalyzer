@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Coded by Gioele Lazzari (gioele.lazzari@univr.it)
 software = "graphanalyzer.py"
-version = "1.4" 
+version = "1.4.1" 
 
 
 # import system libraries:
@@ -85,6 +85,11 @@ parser.add_argument('-t', '--threads',
                     default=4,  
                     type=int,
                     help='how many threads to use for the generation of the interactive subgraphs')
+parser.add_argument('-k', '--skipdiff',
+                    metavar='BOOL', 
+                    default=False,  
+                    type=bool,
+                    help="whether to differentiate 'A' Level from 'F' Level")
 
 
 # load the external libraries:
@@ -280,7 +285,7 @@ def fillWithMetas(csv , metas):
 
 
 
-def clusterExtractor(graph, csv_edit, output_path, string_suffix, prefix):
+def clusterExtractor(graph, csv_edit, output_path, string_suffix, prefix, skipdiff):
 
     # prepare results dataframe:
     results = pnd.DataFrame(data = {
@@ -329,7 +334,7 @@ def clusterExtractor(graph, csv_edit, output_path, string_suffix, prefix):
         # "G": not in the graph.
         # "F": present in the graph but not assigned (completely isolated).
         # "A": present in the graph but not assigned (indireclty connected to references).
-        if level != "F" and level != "G" and level != "A":
+        if level != "F" and level != "G" and level != "A" and level != "AF":
             
             baltim     = csv_edit.loc[csv_edit['Genome'] == closer, 'BaltimoreGroup'].values[0]
             realm      = csv_edit.loc[csv_edit['Genome'] == closer, 'Realm'].values[0]
@@ -592,12 +597,15 @@ def clusterExtractor(graph, csv_edit, output_path, string_suffix, prefix):
                 else: # this means: NO reference in sameclustered AND NO reference in neighbors
                     logging.warning("NO reference in connected sameclustered AND NO reference in neighbors.")
 
-                    currlev = "F" # F: completely isolated vOTUs; A: vOTUs distantly indirectly linked to references.
-                    genomes_connected = list(net.node_connected_component(graph, row.Genome))
-                    for genome in genomes_connected: # here "genome" is a string !
-                        if genome.startswith(prefix)==False:
-                            currlev = "A"
-                            break
+                    if not skipdiff: 
+                        # warning: node_connected_component is simgle core and computation-intensive with large graphs
+                        currlev = "F" # F: completely isolated vOTUs; A: vOTUs distantly indirectly linked to references.
+                        genomes_connected = list(net.node_connected_component(graph, row.Genome))
+                        for genome in genomes_connected: # here "genome" is a string !
+                            if genome.startswith(prefix)==False:
+                                currlev = "A"
+                                break
+                    else: currlev = "AF"
                         
                     # From what we've seen, status for "F" can be:
                     # Clustered, Outlier, Overlap. But NOT "Singleton" (that is: never present in the graph).
@@ -998,9 +1006,9 @@ if __name__ == "__main__":
     # This is how to test the program:
     """
     python  graphanalyzer.py \
-    --graph ./testinput/c1.ntw \
-    --csv   ./testinput/genome_by_genome_overview.csv \
-    --metas ./testinput/1Nov2021_data_excluding_refseq.tsv \
+    --graph ./testinput/testinput1/c1.ntw \
+    --csv   ./testinput/testinput1/genome_by_genome_overview.csv \
+    --metas ./testinput/testinput1/1Nov2021_data_excluding_refseq.tsv \
     --output      ./testoutput/ \
     --prefix      vOTU \
     --suffix      assemblerX \
@@ -1077,13 +1085,19 @@ if __name__ == "__main__":
     # 2nd PART:
     # Run the main algorithm. For every viral scaffold, get the most probable taxonomy: 
     start_time = time.time()
-    df_results = clusterExtractor(graph, csv_edit, parameters.output, parameters.suffix, parameters.prefix)
+    if  parameters.skipdiff==True: 
+        consoleout("warning", "--skipdiff True means that 'A' Level and 'F' Level will not be differentiated: a common 'AF' Level will be assigned instead.")
+    df_results = clusterExtractor(graph, csv_edit, parameters.output, parameters.suffix, parameters.prefix, parameters.skipdiff)
     nC = len(df_results[df_results["Level"].str.startswith('C')])
     nN = len(df_results[df_results["Level"].str.startswith('N')])
     nG = len(df_results[df_results["Level"].str.startswith('G')])
-    nF = len(df_results[df_results["Level"].str.startswith('F')])
-    nA = len(df_results[df_results["Level"].str.startswith('A')])
-    consoleout("okay", f'Taxonomy of {len(votus)} vOTUs (C:{nC}; N:{nN}; G:{nG}; F:{nF}; A:{nA}) obtained in {time.time() - start_time} s.')
+    if parameters.skipdiff:
+        nAF = len(df_results[df_results["Level"].str.startswith('AF')])
+        consoleout("okay", f'Taxonomy of {len(votus)} vOTUs (C:{nC}; N:{nN}; G:{nG}; AF:{nAF}) obtained in {time.time() - start_time} s.')
+    else:
+        nF = len(df_results[df_results["Level"].str.startswith('F')])
+        nA = len(df_results[df_results["Level"].str.startswith('A')])
+        consoleout("okay", f'Taxonomy of {len(votus)} vOTUs (C:{nC}; N:{nN}; G:{nG}; F:{nF}; A:{nA}) obtained in {time.time() - start_time} s.')
     
 
     
