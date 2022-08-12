@@ -99,6 +99,11 @@ parser.add_argument('-k', '--skipdiff',
                     default=False,  
                     type=bool,
                     help="whether to differentiate 'A' Level from 'F' Level")
+parser.add_argument('-c', '--chunksize',
+                    metavar='INT', 
+                    default=None,  
+                    type=int,
+                    help="size of chuncks to use during multiprocessing part")
 
 
 # load the external libraries:
@@ -990,7 +995,7 @@ def subgraph_generation(scaffold, desired_path):
 
 
 
-def subgraphCreator(graph, scaffolds_ingraph, output_path, string_suffix, max_weight, prefix, nthreads):
+def subgraphCreator(graph, scaffolds_ingraph, output_path, string_suffix, max_weight, prefix, nthreads, chunksize):
 
     
     # First of all create the subfolder for storing all the subplots.
@@ -1011,31 +1016,37 @@ def subgraphCreator(graph, scaffolds_ingraph, output_path, string_suffix, max_we
     # Suggested reading https://superfastpython.com/threadpoolexecutor-vs-processpoolexecutor/ 
     # on the difference between ThreadPoolExecutor and ProcessPoolExecutor. 
     # Remember: with precesses, functions are only picklable if they are defined at the top-level of a module.
-    executor = ProcessPoolExecutor(nthreads) 
-    futures = [] # list of tasks
-    # For each 'scaffolds_ingraph', compute the nieghtbors:
-    for scaffold in scaffolds_ingraph:
-        futures.append(executor.submit(subgraph_generation, scaffold, desired_path))
+    chunks = [scaffolds_ingraph[x : x+chunksize] for x in range(0, len(scaffolds_ingraph), chunksize)]
+    
+    counter_scaffolds = 0
+    counter_chunks = 0
+    for chunk in chunks:
+        counter_chunks += 1
+        with ProcessPoolExecutor(nthreads) as executor: # memory released after 'with'
+            futures = [] # list of tasks
+            # For each 'scaffolds_ingraph', compute the nieghtbors:
+            
+            for scaffold in chunk:
+                futures.append(executor.submit(subgraph_generation, scaffold, desired_path))
 
-    counter = 0
-    # iterate over all submitted tasks and get results as they are available.
-    # as_completed() is useful to manipulate results as they become available.
-    # as_completed() return results in whatever order (as soon as they become available).
-    for future in as_completed(futures):
-        # get the result for the next completed task
-        scaffold = future.result() # blocking call: wait for this task to completed
-        counter += 1
-        print(f"Completed subgraph {counter}/{len(scaffolds_ingraph)} ({scaffold})        ", end='\r')
+            # iterate over all submitted tasks and get results as they are available.
+            # as_completed() is useful to manipulate results as they become available.
+            # as_completed() return results in whatever order (as soon as they become available).
+            for future in as_completed(futures):
+                # get the result for the next completed task
+                scaffold = future.result() # blocking call: wait for this task to completed
+                counter_scaffolds += 1
 
+                avail = psutil.virtual_memory().available
+                print(f"Completed subgraph {counter_scaffolds}/{len(scaffolds_ingraph)} ({scaffold}) [chunk {counter_chunks}/{len(chunks)}] avail {avail /(10**6)} MB        ", end='\r')
 
-
-        current, peak = tracemalloc.get_traced_memory()
-        avail = psutil.virtual_memory().available
-        swap = psutil.swap_memory().percent
-        #consoleout('okay', f"   scaffold: {scaffold} ; PID: {os.getpid()} ; Current: {current / 10**6} MB ; Available: {avail /(10**6)} MB ; SWAP: {swap}%")
-
-
-    executor.shutdown() # blocking call: wait for all tasks to complete
+                """
+                current, peak = tracemalloc.get_traced_memory()
+                avail = psutil.virtual_memory().available
+                swap = psutil.swap_memory().percent
+                consoleout('okay', f"   scaffold: {scaffold} ; PID: {os.getpid()} ; Current: {current / 10**6} MB ; Available: {avail /(10**6)} MB ; SWAP: {swap}%")
+                """
+            executor.shutdown() # blocking call: wait for all tasks to complete
 
 
     return None 
@@ -1066,6 +1077,7 @@ if __name__ == "__main__":
     
     # get the parameters from argparser:
     parameters = parser.parse_args()
+
 
     # check the presence of passed files:
     try: graph_table = open(parameters.graph, 'r') 
@@ -1167,7 +1179,9 @@ if __name__ == "__main__":
     curr_max_weight = max(global_weights)
     if curr_max_weight > max_weight:
         consoleout("warning", f"Max weight here is > {max_weight} ({curr_max_weight}). {max_weight} will be used anyway. Please contact the developer.")
-    consoleout("okay", f"Starting to generate {len(votus_ingraph)} subraphs with {parameters.threads} threads.")
+    
+    if parameters.chunksize==None: parameters.chunksize = 4 * parameters.threads
+    consoleout("okay", f"Starting to generate {len(votus_ingraph)} subraphs with {parameters.threads} threads and chunksize {parameters.chunksize}.")
     
     start_time = time.time()
     # first use 'csv_edit' and 'results' to fill 'graph' with useful attributes. 
@@ -1179,7 +1193,7 @@ if __name__ == "__main__":
     gc.collect()
     getcurralloc()
 
-    subgraphCreator(graph, scaffolds_ingraph, parameters.output, parameters.suffix, max_weight, parameters.prefix, parameters.threads) 
+    subgraphCreator(graph, scaffolds_ingraph, parameters.output, parameters.suffix, max_weight, parameters.prefix, parameters.threads, parameters.chunksize) 
     consoleout("okay", f'Generated {len(votus_ingraph)} interactive subgraphs in {time.time() - start_time} s.')
     
 
