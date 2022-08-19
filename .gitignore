@@ -2,3 +2,4 @@ testoutput*/
 testinput/*
 !testinput/*.tar.gz
 **/.DS_Store
+locals/
