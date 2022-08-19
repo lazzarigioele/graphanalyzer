@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Coded by Gioele Lazzari (gioele.lazzari@univr.it)
 software = "graphanalyzer.py"
-version = "1.5" 
+version = "1.5.1" 
 
 
 
@@ -204,26 +204,7 @@ def fillWithMetas(csv , metas):
 def clusterExtractor(graph, csv_edit, output_path, string_suffix, prefix): 
 
     # prepare results dataframe:
-    results = pnd.DataFrame(data = {
-        'Scaffold': [],
-        'Closer': [], # this is the putative species. 
-        'Accession': [],
-        'Status': [],
-        'VC': [],
-        'Level': [],
-        'Weight': [],
-        'Host': [],
-        # Below the putative taxonomy table exluding the species:
-        'BaltimoreGroup' : [],
-        'Realm' : [],
-        'Kingdom' : [],
-        'Phylum' : [],
-        'Class' : [],
-        'Order' : [],
-        'Family' : [],
-        'Subfamily' : [],
-        'Genus' : []
-        })
+    results = [] # a list of dict to be later converted in dataframe
 
 
     # Function to append the taxonomy result of a vOTU into the passed results dataframe.
@@ -271,7 +252,7 @@ def clusterExtractor(graph, csv_edit, output_path, string_suffix, prefix):
             weight = str(int(round(weight,0))) 
 
         # append new row:
-        results = results.append({
+        results.append({
             'Scaffold': scaffold,
             'Closer': species, # this is the putative species. 
             'Accession': closer,
@@ -290,7 +271,7 @@ def clusterExtractor(graph, csv_edit, output_path, string_suffix, prefix):
             'Family' : family,
             'Subfamily' : subfamily,
             'Genus' : genus
-            }, ignore_index = True) 
+            }) 
 
         return results
 
@@ -396,12 +377,12 @@ def clusterExtractor(graph, csv_edit, output_path, string_suffix, prefix):
                 vc_list = status.replace("Overlap (", "").replace(")", "").split("/")
                 sameclustered = pnd.DataFrame() # empty df
                 for vc in vc_list: # extract the rows and glue them together with the others
-                    sameclustered = sameclustered.append(csv_edit[csv_edit['VCSubcluster'].str.startswith(vc + "_")])
+                    sameclustered = pnd.concat([sameclustered, csv_edit[csv_edit['VCSubcluster'].str.startswith(vc + "_")]])
                     # handling of others Overlaps:
-                    sameclustered = sameclustered.append(csv_edit[
+                    sameclustered = pnd.concat([sameclustered, csv_edit[
                         (csv_edit['VCStatus'].str.contains('\(' + vc + '/')) | \
                         (csv_edit['VCStatus'].str.contains('/' + vc + '/')) | \
-                        (csv_edit['VCStatus'].str.contains('/' + vc + '\)')) ])
+                        (csv_edit['VCStatus'].str.contains('/' + vc + '\)')) ]])
                 sameclustered_list = sameclustered["Genome"].tolist() 
                 sameclustered_list.remove(scaffold) 
 
@@ -541,6 +522,8 @@ def clusterExtractor(graph, csv_edit, output_path, string_suffix, prefix):
     logging.info('Processing of vConTACT2 output is ended.') 
     
 
+    # convert the list of dict into a pandas dataframe
+    results = pnd.DataFrame.from_records(results)
     # order results by scaffold name
     results = results.sort_values(by=['Scaffold'])
 
@@ -1041,7 +1024,7 @@ if __name__ == "__main__":
     --output      ./testoutput/ \
     --prefix      vOTU \
     --suffix      assemblerX \
-    --view        3d \
+    --view        2d \
     -t 4
     """ # eventually adding --pickle ./testoutput/assemblerX.pickle
 
