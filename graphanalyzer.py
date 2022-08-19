@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
 # Coded by Gioele Lazzari (gioele.lazzari@univr.it)
 software = "graphanalyzer.py"
-version = "1.4.2" 
-
+version = "1.5" 
 
 
 
 # begin the memory tracing
 import tracemalloc
 tracemalloc.start()# at this point, get_traced_memory() it's (0, 0)
-
-
-from memory_profiler import profile
+#from memory_profiler import profile
 
 
  
@@ -204,7 +201,7 @@ def fillWithMetas(csv , metas):
 
 
 
-def clusterExtractor(graph, csv_edit, output_path, string_suffix, prefix, skipdiff): 
+def clusterExtractor(graph, csv_edit, output_path, string_suffix, prefix): 
 
     # prepare results dataframe:
     results = pnd.DataFrame(data = {
@@ -518,15 +515,13 @@ def clusterExtractor(graph, csv_edit, output_path, string_suffix, prefix, skipdi
                 else: # this means: NO reference in sameclustered AND NO reference in neighbors
                     logging.warning("NO reference in connected sameclustered AND NO reference in neighbors.")
 
-                    if not skipdiff: 
-                        # warning: node_connected_component is simgle core and computation-intensive with large graphs
-                        currlev = "F" # F: completely isolated vOTUs; A: vOTUs distantly indirectly linked to references.
-                        genomes_connected = list(net.node_connected_component(graph, row.Genome))
-                        for genome in genomes_connected: # here "genome" is a string !
-                            if genome.startswith(prefix)==False:
-                                currlev = "A"
-                                break
-                    else: currlev = "AF"
+                    # warning: node_connected_component is simgle core and computation-intensive with large graphs
+                    currlev = "F" # F: completely isolated vOTUs; A: vOTUs distantly indirectly linked to references.
+                    genomes_connected = list(net.node_connected_component(graph, row.Genome))
+                    for genome in genomes_connected: # here "genome" is a string !
+                        if genome.startswith(prefix)==False:
+                            currlev = "A"
+                            break
                         
                     # From what we've seen, status for "F" can be:
                     # Clustered, Outlier, Overlap. But NOT "Singleton" (that is: never present in the graph).
@@ -667,84 +662,182 @@ def addGraphAttributes(graph, csv_edit, results, prefix):
     net.set_node_attributes(graph, attribs)
 
 
-
     # extract scaffold that are in-graph 
     results_ingraph = results.copy(deep=True)    # not G
     for index, row in results.iterrows():
         if row.Level == "G":
-            results_ingraph = results_ingraph.drop(index)
-    
+            results_ingraph = results_ingraph.drop(index)    
     scaffolds_ingraph = results_ingraph['Scaffold'].tolist()
 
 
     return graph, scaffolds_ingraph
 
 
-@profile
-def subgraph_generation(arguments):
 
-    import os 
+def get_curr_color(scaff_Status, scaff_VC, scaff_Accession, curr_Status, curr_VC, curr_Accession, curr_Type, scaffold, node):
+    
+    col_ref = '#C7A1D1' 
+    col_inner = '#F76915' # orange
+    col_outer = '#EEDE04' # yellow
+    col_closer = '#2FA236' # green
+    col_current = '#FD0100' # red
+    
+    
+    #######################
+    # SCAFFOLD view point #
+    #######################
+    # Clustered
+    if scaff_Status == "Clustered":
+        valid_scaff_VCs = [scaff_VC] # eg ['VC_589_1']
+    # Clustered/Singleton
+    elif scaff_Status == "Clustered/Singleton":
+        valid_scaff_VCs = ["VC_" + scaff_VC.split("_")[1] + "_"] # eg ['VC_589_']
+    # Outlier
+    elif scaff_Status == "Outlier": # Outliers are never put inside a VC:
+        valid_scaff_VCs = []
+    # Overlap
+    elif "Overlap" in scaff_Status: # eg ['VC_589', 'VC_590', 'VC_591']
+        valid_scaff_VCs = scaff_Status.replace("Overlap (", "").replace(")", "").split("/")
+
+
+    ###########################
+    # CURRENT NODE view point #
+    ###########################
+    # Clustered, Clustered/Singleton 
+    if curr_Status == "Clustered" or curr_Status == "Clustered/Singleton": # VC_z_k
+        # Overlap
+        if "Overlap" in scaff_Status: # 'valid_scaff_VCs' eg ['VC_589_', 'VC_590_', 'VC_591_']
+            valid_curr_VCs = ["VC_" + curr_VC.split("_")[1] + '_'] 
+        elif scaff_Status == "Clustered/Singleton": # 'valid_scaff_VCs' eg ['VC_589_']
+            valid_curr_VCs = ["VC_" + curr_VC.split("_")[1] + "_"]
+        else: # 'scaff_Status' is Clustered or Outlier
+            valid_curr_VCs = [curr_VC] # VC_z_k
+    # Outlier
+    elif curr_Status == "Outlier": # Outliers are never put inside a VC:
+        valid_curr_VCs = [] # Remember: ">>> [] in []" return 'False'
+    # Overlap
+    elif "Overlap" in curr_Status: # VC_z1, VC_z2, VC_z3
+        valid_curr_VCs = curr_Status.replace("Overlap (", "").replace(")", "").split("/")
+        if scaff_Status == "Clustered" or scaff_Status == "Clustered/Singleton":
+            valid_scaff_VCs = ["VC_" + vc.split("_")[1] for vc in valid_scaff_VCs]
+                
+
+    curr_color = col_ref
+    # color for nodes in the same VC, distinguishing "real" VCs (Clustered) from 
+    # "artifical" or "extended" VCs (Overlap and Clustered/Singleton):
+    if any(vc in valid_scaff_VCs for vc in valid_curr_VCs):
+        if "Overlap" in scaff_Status or scaff_Status == "Clustered/Singleton":
+            curr_color = col_outer 
+        else: 
+            curr_color = col_inner
+
+
+    # Add Cluster's nodes when in the Subcluster mode:
+    # So we have to consider the 3 cases: 'Clustered', 'Clustered/Singleton', 'Overlap'. 
+    if scaff_Status == "Clustered" and (curr_Status == "Clustered" or curr_Status == "Clustered/Singleton"):
+        if (("VC_" + scaff_VC.split('_')[1] + "_") in curr_VC) and (curr_VC != scaff_VC): 
+            curr_color = col_outer 
+    elif scaff_Status == "Clustered" and ("Overlap" in curr_Status):
+        # Keep in mind that it's a string like "Overlap (VC_4/VC_412/VC_41)""
+        if (("VC_" + scaff_VC.split('_')[1] + "/") in curr_Status): 
+            curr_color = col_outer 
+        elif (("VC_" + scaff_VC.split('_')[1] + ")") in curr_Status): 
+            curr_color = col_outer 
+
+
+    # understand if this node determines the taxonomy of the current 'scaffold':
+    # this if statement picks up only 'References'. So we'll have just 1 green triangle.
+    if scaff_Accession == curr_Accession and curr_Type == "Reference":
+        curr_color = col_closer
     
 
-    # external libraries:
-    import networkx as net # net.spring_layout() could require also scipy.
-    import holoviews as hv # for the save() method
-    import hvplot.networkx as hvnx
+    # check if this is current vOTU:
+    if node == scaffold:
+        curr_color = col_current
 
 
+    return curr_color
+
+
+
+#@profile
+def subgraph_generation2(arguments):
+
+
+    # get allocated memory as soon as the child process starts: 
+    alloc_child, _ = tracemalloc.get_traced_memory()
+
+
+    # get the arguments
     scaffolds = arguments[0]
     desired_path = arguments[1]
     graph = arguments[2]
     max_weight = arguments[3]
-    worker = 0
+    worker = arguments[4] +1   # just an ID for this worker.
+    view = arguments[5] 
 
 
-    alloc, _ = tracemalloc.get_traced_memory()
-    print(f"Starting child process {worker} with PID {os.getpid()} with {str(scaffolds)} nedges {graph.size()} ; malloc {alloc / 10**6} MB.")
+    import os # needed by os.getpid()
+    #print(f"Worker {worker} (PID {os.getpid()}) started with {len(scaffolds)} vOTUs.")
 
 
-    import gc, textwrap, threading, io
-    for scaffold in scaffolds:
+    # load external libraries:
+    import networkx as net # net.spring_layout() could require also scipy.
+    import plotly.offline as py
+    import plotly.graph_objects as go
+
+
+    # get allocated memory now that ext libraries are imported
+    alloc_libs, _ = tracemalloc.get_traced_memory()
+    
+
+    for scaffold in scaffolds: 
         
-        #tracemalloc.reset_peak() # reset max allocation !!! needs pyhton 3.9
+        # stop-start combo is needed for python<3.9 in order to reset the 'peak' couter.
         #tracemalloc.stop()
         #tracemalloc.start()
+        # now 'alloc_start' should be 0 bytes.
         alloc_start, _ = tracemalloc.get_traced_memory()
 
+
+        # create a new subgraph using 'scaffold' neighbors. 
         neigh = list(graph.neighbors(scaffold))
         # recreate a subgraph with: nieghbors + scaffold
         # we assume that neighbors() doesn't already include 'scaffold'.
         neigh.append(scaffold)
         sview_graph = graph.subgraph(neigh).copy()
-        
+        nedges = sview_graph.size() # get the current number of edges
 
-        # Extract attributes of the current scaffold (vOTU):
+
+        # Extract attributes of the current 'scaffold' (vOTU):
         scaff_Type      = sview_graph.nodes[scaffold]["A0_Type"]
         scaff_Accession = sview_graph.nodes[scaffold]["A2_Accession"]
         scaff_Status    = sview_graph.nodes[scaffold]["A3_Status"]
         scaff_VC        = sview_graph.nodes[scaffold]["A4_VC"]
         scaff_Level     = sview_graph.nodes[scaffold]["A5_Level"]
 
+
+        # just a Status check
         if scaff_Status == "Singleton" or scaff_Level == 'G':
             consoleout("error", "There shouldn't be 'G' scaffolds at this point. Contact the developer.")
 
 
         # Calculate position of all nodes and edges with spring_layout(): 
         # (APPROXIMATELY, the higher is 'weight' attribute, the shorter is edge length) 
-        sview_pos = net.drawing.layout.spring_layout(sview_graph, weight='weight')
+        if view=='3d' or view=='3D': sview_pos = net.drawing.layout.spring_layout(sview_graph, weight='weight', dim=3, seed=1)
+        else: sview_pos = net.drawing.layout.spring_layout(sview_graph, weight='weight', dim=2, seed=1)
 
 
-        # try to set the theme:
-        hv.renderer('bokeh').theme = 'dark_minimal'
-        # draw empty graph 1000x650:
-        sview_image = hvnx.draw_networkx(
-            sview_graph, pos=sview_pos, 
-            edgelist=[], nodelist=[],  
-            width=1000, height=650
-        )
+        # Create a plotly figure:
+        layout = go.Layout(
+            title=f'{scaffold} subnetwork.<br><sub>Interactive plot generated with <b>graphanalyzer.py</b> v{version}. Please wait the loading.</sub>',
+            annotations=[dict(text='User guide available at <a href="https://www.github.com/lazzarigioele/graphanalyzer/">github.com/lazzarigioele/graphanalyzer</a>.'+
+                '<br>Bugs can be reported to <a href= "mailto:gioele.lazzari@univr.it">gioele.lazzari@univr.it</a>.',
+                showarrow=False, xref="paper", yref="paper", x=0.0, y=0.0, align="left")])
+        fig = go.Figure(layout=layout)
 
 
-        # update the attribute 'A6_Weight' for every node:
+        # update the attribute 'A6_Weight' for every node. 'Weight' must become relative to the current scaffold. 
         for node in sview_graph: # here node is a string !
             attrs = {} # a dict.
             if node == scaffold: attrs = {node: {"A6_Weight": "origin"}}
@@ -752,234 +845,188 @@ def subgraph_generation(arguments):
             net.set_node_attributes(sview_graph, attrs)
 
 
-        # Now we want to draw all the edges:
-        # Drawing edges one-by-one is too slow and generates too heavy .html files.
-        # Using 'cmap' and 'dim' is faster and lighter. For example 90 KB vs 1.3 MB for vOTU_1.
-        # Another strategy could be to pass to 'edge_color' and 'edge_width' of hvnx.draw_networkx_edges
-        # an ordered list (color_list, width_list). But we begin creating a list of dict, 
-        # because it's sortable based on some key (for future uses). Starting from the list of dict we'll
-        # create the necessary lists (color_list, width_list, ...).
-        edge_list = [] # list of dict
-        for edge in sview_graph.edges.data("weight"): # (nodeA, nodeB, weight)
-            curr_dict = {'pairs': None, 'weight': None, 'width': None, 'color': None, 'alpha': None} 
-            curr_dict['pairs'] = (edge[0], edge[1]) # 'Tuples' are written with round brackets.
-            curr_dict['weight'] = edge[2]
-            curr_dict['width'] = edge[2] / max_weight *6 # '*6' as a scaling factor.
-            curr_dict['alpha'] = 0.3 if edge[2] / max_weight < 0.3 else 1.0
-            # This is a "3-point" gradient, and thus below we use (255*2).
-            # The 3 points are: (0,255,255) ; (255,255,0) ; (255,0,0)
-            factor = int(round(edge[2] /max_weight * (255*2)))
-            if (factor <= 255): curr_dict['color'] = "#%02x%02x%02x" % (factor, 255, 255-factor)
-            else: curr_dict['color'] = "#%02x%02x%02x" % (255, 255-(factor-255), 0)
-            edge_list.append(curr_dict) # finally append the dict
-        # convert the list of dict to the necessary lists (color_list, width_list, ...).
-        pairs_list, width_list ,color_list, alpha_list = [], [], [], []
-        for edge in edge_list: 
-            pairs_list.append(edge['pairs'])
-            width_list.append(edge['width'])
-            color_list.append(edge['color'])
-            alpha_list.append(edge['alpha'])
-        # Draw all the edges:
-        sview_image = sview_image * hvnx.draw_networkx_edges(
-                sview_graph.edge_subgraph(pairs_list), pos=sview_pos, edgelist=pairs_list,
-                edge_color=color_list, edge_width=width_list, alpha=alpha_list)
+        # add traces for edges: 
+        palette = ['#98A9D7', '#8ED2CD', '#C2ED98', '#F1F487', '#FED776', '#F59B7C']
+        for thickness in range(6):
+            edges_x = []
+            edges_y = []
+            edges_z = []
+            for edge in sview_graph.edges.data("weight"): # (nodeA, nodeB, weight)
 
+                # '*6' is a scaling factor. So 6 is the max.
+                width = edge[2] / max_weight *6  
+                if thickness < width and width <= (thickness+1):
 
+                    # save extremes positions:
+                    if view=='3d' or view=='3D': 
+                        xA, yA, zA = sview_pos[edge[0]]
+                        xB, yB, zB = sview_pos[edge[1]]
+                    else:
+                        xA, yA = sview_pos[edge[0]]
+                        xB, yB = sview_pos[edge[1]]
+                    edges_x.append(xA)
+                    edges_x.append(xB)
+                    edges_x.append(None)
+                    edges_y.append(yA)
+                    edges_y.append(yB)
+                    edges_y.append(None)
+                    if view=='3d' or view=='3D':
+                        edges_z.append(zA)
+                        edges_z.append(zB)
+                        edges_z.append(None)
 
+            if view=='3d' or view=='3D':
+                edge_trace = go.Scatter3d(
+                    x=edges_x, 
+                    y=edges_y, 
+                    z=edges_z,
+                    line=dict(width=thickness+1, color=palette[thickness]),
+                    hoverinfo='text',
+                    mode='lines')  
+            else:
+                edge_trace = go.Scatter(
+                    x=edges_x, 
+                    y=edges_y, 
+                    #z=edges_z,
+                    line=dict(width=thickness+1, color=palette[thickness]),
+                    hoverinfo='text',
+                    mode='lines')  
+            fig.add_trace(edge_trace)
+        
+        
+        # add trace for nodes: 
+        nodes_x = []
+        nodes_y = [] 
+        nodes_z = []
+        nodes_text = []
+        nodes_shape = []
+        nodes_color = []
         for node in sview_graph: # here node is a string !
+            if view=='3d' or view=='3D': x, y, z = sview_pos[node]
+            else: x, y = sview_pos[node]
+            nodes_x.append(x)
+            nodes_y.append(y)
+            if view=='3d' or view=='3D': nodes_z.append(z)
 
             # Extract attributes of the current node:
             curr_Type        = sview_graph.nodes[node]["A0_Type"]
+            curr_SpeClo      = sview_graph.nodes[node]["A1_Species/Closer"]
             curr_Accession   = sview_graph.nodes[node]["A2_Accession"]
             curr_Status      = sview_graph.nodes[node]["A3_Status"]
             curr_VC          = sview_graph.nodes[node]["A4_VC"]
             curr_Level       = sview_graph.nodes[node]["A5_Level"]
+            curr_Weight      = sview_graph.nodes[node]["A6_Weight"]
+            curr_Genus       = sview_graph.nodes[node]["A7_Genus"]
+            curr_Family      = sview_graph.nodes[node]["A8_Family"]
+            curr_Host        = sview_graph.nodes[node]["A9_Host"]
 
-            # Properties of this node:
+            # Initialize properties of this node:
             curr_shape = ""
-            curr_size  = 0
-            curr_color = "orchid"
+            curr_color = ""
 
             # Distinguish between "Scaffold" and "Reference":
             if curr_Type == "Scaffold":
-                curr_shape = "circle"
-                curr_size = 400
+                curr_shape = 'circle'
             elif curr_Type == "Reference": 
-                curr_shape = "triangle"
-                curr_size = 400
-            else:
-                consoleout("error", "Strange A0_Type when determining the node's shape.")
+                curr_shape = 'diamond' if view=='3d' or view=='3D' else 'star-triangle-up' 
+            else: consoleout("error", "Strange A0_Type when determining the node's shape.")
+            nodes_shape.append(curr_shape)
 
-            """
-            conditions = [  "1C" in scaff_Level,
-                            "2C" in scaff_Level and scaff_Status == "Clustered",
-                            "1N" in scaff_Level and scaff_Status == "Clustered",
-                            "1N" in scaff_Level and "Overlap" in scaff_Status,
-                            "2N" in scaff_Level and "Overlap" in scaff_Status,
-                            "2N" in scaff_Level and scaff_Status == "Clustered",
-                            scaff_Level == "F" and "Overlap" in scaff_Status,
-                            scaff_Level == "F" and scaff_Status == "Clustered"
-                        ]
-            """
-            conditions = [True]
+            # get the color of this node:
+            curr_color = get_curr_color(scaff_Status, scaff_VC, scaff_Accession, curr_Status, curr_VC, curr_Accession, curr_Type, scaffold, node)
+            nodes_color.append(curr_color)
 
+            # get the mouse-hover description:
+            nodes_text.append(
+                         '<b><i>'+"index "+'</b></i>'             + '<b>'+node+'</b>' +
+                '<br>' + '<b><i>'+"A0_Type "+'</b></i>'           + curr_Type + 
+                '<br>' + '<b><i>'+"A1_Species/Closer "+'</b></i>' + curr_SpeClo + 
+                '<br>' + '<b><i>'+"A2_Accession "+'</b></i>'      + curr_Accession + 
+                '<br>' + '<b><i>'+"A3_Status "+'</b></i>'         + curr_Status + 
+                '<br>' + '<b><i>'+"A4_VC "+'</b></i>'             + curr_VC + 
+                '<br>' + '<b><i>'+"A5_Level "+'</b></i>'          + curr_Level + 
+                '<br>' + '<b><i>'+"A6_Weight "+'</b></i>'         + curr_Weight + 
+                '<br>' + '<b><i>'+"A7_Genus "+'</b></i>'          + curr_Genus + 
+                '<br>' + '<b><i>'+"A8_Family "+'</b></i>'         + curr_Family + 
+                '<br>' + '<b><i>'+"A9_Host "+'</b></i>'           + curr_Host
+            )
 
-            # SCAFFOLD view point.
-            valid_scaff_VCs = []
-            if any(conditions):
-                # Clustered 
-                if scaff_Status == "Clustered":
-                    valid_scaff_VCs = [scaff_VC]
-                # Clustered/Singleton
-                elif scaff_Status == "Clustered/Singleton":
-                    valid_scaff_VCs = ["VC_" + scaff_VC.split("_")[1] + "_"] 
-                # Outlier
-                elif scaff_Status == "Outlier": # Outliers are never put inside a VC:
-                    valid_scaff_VCs = []
-                # Overlap
-                elif "Overlap" in scaff_Status:
-                    valid_scaff_VCs = scaff_Status.replace("Overlap (", "").replace(")", "").split("/") 
+        if view=='3d' or view=='3D': 
+            node_trace = go.Scatter3d(
+                x=nodes_x, 
+                y=nodes_y, 
+                z=nodes_z,
+                text=nodes_text,
+                mode='markers',
+                hoverinfo='text',
+                marker=dict(size=8, color=nodes_color, line_width=1, symbol=nodes_shape, line=dict(color='black')))
+        else: 
+            node_trace = go.Scatter(
+                x=nodes_x, 
+                y=nodes_y, 
+                #z=nodes_z,
+                text=nodes_text,
+                mode='markers',
+                hoverinfo='text',
+                marker=dict(size=12, color=nodes_color, line_width=1, symbol=nodes_shape))
+        fig.add_trace(node_trace)
 
-            
-            # CURRENT NODE view point:
-            valid_curr_VCs = []
-            if any(conditions):
-                # Clustered, Clustered/Singleton 
-                if curr_Status == "Clustered" or curr_Status == "Clustered/Singleton": # VC_z_k
-                    if "Overlap" in scaff_Status: # VC_z1, VC_z2, VC_z3
-                        valid_curr_VCs = ["VC_" + curr_VC.split("_")[1]] 
-                    elif scaff_Status == "Clustered/Singleton": # VC_z_*
-                        valid_curr_VCs = ["VC_" + curr_VC.split("_")[1] + "_"]
-                    else: 
-                        valid_curr_VCs = [curr_VC] # VC_z_k
-                # Outlier
-                elif curr_Status == "Outlier": # Outliers are never put inside a VC:
-                    valid_curr_VCs = [] # Remember: ">>> [] in []" return 'False'
-                # Overlap
-                elif "Overlap" in curr_Status: # VC_z1, VC_z2, VC_z3
-                    valid_curr_VCs = curr_Status.replace("Overlap (", "").replace(")", "").split("/")
-                    if scaff_Status == "Clustered" or scaff_Status == "Clustered/Singleton":
-                        valid_scaff_VCs = ["VC_" + vc.split("_")[1] for vc in valid_scaff_VCs]
-                        
+           
+        # Remove legend
+        fig.update_layout(showlegend=False)
+        # Remove tick labels
+        fig.update_xaxes(showticklabels=False)
+        fig.update_yaxes(showticklabels=False)
 
-            # color for nodes in the same VC, distinguishing "real" VCs (Clustered) from 
-            # "artifical" or "extended" VCs (Overlap and CLustered/Singleton):
-            if any(conditions):
-                if any(vc in valid_scaff_VCs for vc in valid_curr_VCs):
-                    if "Overlap" in scaff_Status or scaff_Status == "Clustered/Singleton":
-                        curr_color = "yellow" 
-                    else: 
-                        curr_color = "darkorange"
+        # Save to html
+        string_repr = fig.write_html(desired_path + scaffold + '.html')
 
-
-            # Add Cluster's nodes when in the Subcluster mode:
-            # So we have to consider the 3 cases: 'Clustered', 'Clustered/Singleton', 'Overlap'. 
-            if scaff_Status == "Clustered" and (curr_Status == "Clustered" or curr_Status == "Clustered/Singleton"):
-                if (("VC_" + scaff_VC.split('_')[1] + "_") in curr_VC) and (curr_VC != scaff_VC): 
-                    curr_color = "yellow" 
-            elif scaff_Status == "Clustered" and ("Overlap" in curr_Status):
-                # Keep in mind that it's a string like "Overlap (VC_4/VC_412/VC_41)""
-                if (("VC_" + scaff_VC.split('_')[1] + "/") in curr_Status): 
-                    curr_color = "yellow" 
-                elif (("VC_" + scaff_VC.split('_')[1] + ")") in curr_Status): 
-                    curr_color = "yellow" 
-
-
-            # understand if this node determines the taxonomy of the current 'scaffold':
-            # this if statement picks up only 'References'. So we'll have just 1 magenta triangle.
-            if scaff_Accession == curr_Accession and curr_Type == "Reference":
-                curr_color = "limegreen"
-            
-            # check if this is current vOTU:
-            if node == scaffold:
-                curr_color = "orangered"
-
-            # draw this node:
-            sview_image = sview_image * hvnx.draw_networkx_nodes(
-                    sview_graph.subgraph([node]), pos=sview_pos, 
-                    node_color=curr_color, node_shape=curr_shape, node_size=curr_size, 
-                    alpha=1.0, linewidths=1.0)
-
-        
-        ### CUT
-        hv.util.save(obj=sview_image, 
-                    filename= desired_path + scaffold + '.html',
-                    fmt='html',
-                    backend='bokeh',
-                    resources='inline')
-        # add some html tags to help the user:
-        file = open(desired_path + scaffold + '.html', "r")
-        wholetext = file.read(); file.close() # always close file streams!
-        tags = textwrap.dedent("""
-        <body><p style="text-align:center">Interactive plot generated with <strong>graphanalyzer.py</strong>. Please wait the loading.</p>
-        <p style="text-align:center">User guide available at <a href="https://www.github.com/lazzarigioele/graphanalyzer/">github.com/lazzarigioele/graphanalyzer</a>.</p>
-        <p style="text-align:center">Bugs can be reported to <a href= "mailto:gioele.lazzari@univr.it">gioele.lazzari@univr.it</a>.</p>
-        """)
-        # specify the version of GA:
-        tags = tags.replace("graphanalyzer.py", f"graphanalyzer.py v{version}")
-        with open(desired_path + scaffold + '.html', "w") as filehandler:
-            filehandler.write(wholetext.replace("<body>", tags))
-
-        
         alloc_end, _ = tracemalloc.get_traced_memory()
 
-        del sview_graph, sview_image, wholetext
+        # free memory for the next cycle:
+        del string_repr, fig, layout, sview_graph, sview_pos
+        import gc
         gc.collect()
-        
-        alloc_free, final_peak = tracemalloc.get_traced_memory()
-        print(f"PID {os.getpid()} completed {scaffold} START {alloc_start / 10**6} MB ; END {alloc_end / 10**6} MB ; diff {(alloc_end-alloc_start) / 10**6} MB ; free {(alloc_free-alloc_end) / 10**6} MB ; PEAK {final_peak / 10**6} MB")
-        
 
-    return None
+        alloc_free, _ = tracemalloc.get_traced_memory()
 
+        print(f"W#{worker}-PID {os.getpid()}: {scaffold} #E {nedges} "+
+            f"[Ch {int(alloc_child/10**6)} MB; In {int((alloc_free-alloc_child)/10**6)} MB]         ", end='\r')
 
 
-def subgraphCreator(graph, scaffolds_ingraph, output_path, string_suffix, max_weight, prefix, nthreads):
+
+def subgraphCreator(graph, scaffolds_ingraph, output_path, string_suffix, max_weight, prefix, nthreads, view):
 
     import os
     # First of all create the subfolder for storing all the subplots.
     desired_path = output_path + 'single-views_' + string_suffix + '/'
     if (os.path.isdir(desired_path) == False): # if it's not been created yet:
-        try:
-            os.mkdir(desired_path) # make it!
-        except:
-            consoleout("error", "Can't create the output sub-folder '%s'. " % desired_path)
+        try: os.mkdir(desired_path) # make it!
+        except: consoleout("error", "Can't create the output sub-folder '%s'. " % desired_path)
 
 
-    # setting up the multiprocessing parts.
+    # setting up the multiprocessing part.
     # splitting the 'scaffolds_ingraph' into chunks (one chunk for core/process)
-    nscaffodls_inchunk = int(len(scaffolds_ingraph) / nthreads +1)
+    nscaffodls_inchunk = int(len(scaffolds_ingraph) / nthreads)
+    if len(scaffolds_ingraph) % nthreads !=0: nscaffodls_inchunk += 1
     chunks = [scaffolds_ingraph[x *nscaffodls_inchunk : (x+1)* nscaffodls_inchunk] for x in range(nthreads)]
 
 
-
-    newchunks = [[scaffold] for scaffold in scaffolds_ingraph]
-    newgraphs = [graph.subgraph(list(set(list(graph.neighbors(scaffold))+[scaffold]))).copy() for scaffold in scaffolds_ingraph]
-   
-
     import itertools
     results = globalpool.imap(
-            subgraph_generation, 
-            #zip(chunks, 
-            zip(newchunks,
+            subgraph_generation2, 
+            zip(chunks, 
                 itertools.repeat(desired_path), 
-                #itertools.repeat(graph),
-                newgraphs, 
-                itertools.repeat(max_weight)), 
+                itertools.repeat(graph),
+                itertools.repeat(max_weight),
+                range(nthreads), 
+                itertools.repeat(view)),
             chunksize=1)
     for result in results: 
-        #print(f"I've completed {result}!")
+        # print(f"The chunk {result} has been completed.")
         continue
 
     return None 
-
-
-
-def printpid(name):
-    import os
-    print("Hi i'm", name, "PID:", os.getpid())
-    alloc, _ = tracemalloc.get_traced_memory()
-    consoleout("meminfo", f"{alloc / 10**6} MB.")
 
 
 
@@ -994,21 +1041,9 @@ if __name__ == "__main__":
     --output      ./testoutput/ \
     --prefix      vOTU \
     --suffix      assemblerX \
-    --pickle ./testoutput/assemblerX.pickle \
+    --view        3d \
     -t 4
-    """
-    # Suggested debug mode: 
-    """
-    mprof run python  graphanalyzer.py \
-    --graph DEBUG \
-    --csv   DEBUG \
-    --metas DEBUG \
-    --output      ./testoutput/ \
-    --prefix      vOTU \
-    --suffix      assemblerX \
-    --pickle ./assemblerX.pickle \
-    -t 4
-    """
+    """ # eventually adding --pickle ./testoutput/assemblerX.pickle
 
 
     # set the argparser:
@@ -1055,16 +1090,16 @@ if __name__ == "__main__":
         default=4,
         type=int,
         help='Define how many threads to use for the generation of the interactive subgraphs (default: 4).')
-    parser_optional.add_argument('-k', '--skipdiff',
-        metavar='BOOL', 
-        default=False,  
-        type=bool,
-        help="whether to differentiate 'A' Level from 'F' Level (default: False).")
     parser_optional.add_argument('-l', '--pickle',
         metavar='FILEPATH', 
         default=None,  
         type=str,
-        help="Filepath to the pickle object, needed to enter directly to the interactive plots generation step.")
+        help="Filepath to the pickle object, needed to enter directly to the interactive plots generation step (default: None).")
+    parser_optional.add_argument('-w', '--view',
+        metavar='STRING', 
+        default='2d',  
+        type=str,
+        help="Whether to produce interactive subgraphs in 2 ('2d') or 3 dimensions ('3d') (default: '2d').")
     # define the "conventional" arguments: 
     parser_conventional = parser.add_argument_group('Conventional arguments')
     parser_conventional.add_argument('-v', '--version', 
@@ -1078,8 +1113,7 @@ if __name__ == "__main__":
     parameters = parser.parse_args() 
 
 
-    
-
+    # get ready for multiprocessing: 
     import multiprocessing
     multiprocessing.set_start_method('spawn')
     globalpool = multiprocessing.Pool(processes=parameters.threads, maxtasksperchild=1)
@@ -1099,7 +1133,8 @@ if __name__ == "__main__":
             scaffolds_ingraph = loaded_object[0]
             graph = loaded_object[1]
 
-            scaffolds_ingraph = ["vOTU_102", "vOTU_10186", "vOTU_10", "vOTU_1"]
+            # Just bebug these vOTUs: 
+            #scaffolds_ingraph = ["vOTU_102", "vOTU_10186", "vOTU_10", "vOTU_1"]
 
             consoleout("warning", "A pickle was specified. Now starting graphanalyzer from the plot generation step.")
             
@@ -1107,10 +1142,10 @@ if __name__ == "__main__":
             consoleout("okay", f"Starting to generate {len(scaffolds_ingraph)} subraphs with {parameters.threads} threads.")
             start_time = time.time()
             max_weight = 300.0
-            subgraphCreator(graph, scaffolds_ingraph, parameters.output, parameters.suffix, max_weight, parameters.prefix, parameters.threads) 
+            subgraphCreator(graph, scaffolds_ingraph, parameters.output, parameters.suffix, max_weight, parameters.prefix, parameters.threads, parameters.view) 
             consoleout("okay", f'Generated {len(scaffolds_ingraph)} interactive subgraphs in {time.time() - start_time} s.')
 
-            print(f"Ending graphanalyzer.py v{version} on {datetime.datetime.now()}")
+            print(f"\nEnding graphanalyzer.py v{version} on {datetime.datetime.now()}")
         import sys
         sys.exit() 
         consoleout("error", f'Impossible to launch graphanalyzer.py with the pickle provided. Will halt here.')
@@ -1193,19 +1228,13 @@ if __name__ == "__main__":
     # 2nd PART:
     # Run the main algorithm. For every viral scaffold, get the most probable taxonomy: 
     start_time = time.time()
-    if  parameters.skipdiff==True: 
-        consoleout("warning", "--skipdiff True means that 'A' Level and 'F' Level will not be differentiated: a common 'AF' Level will be assigned instead.")
-    df_results = clusterExtractor(graph, csv_edit, parameters.output, parameters.suffix, parameters.prefix, parameters.skipdiff)
+    df_results = clusterExtractor(graph, csv_edit, parameters.output, parameters.suffix, parameters.prefix)
     nC = len(df_results[df_results["Level"].str.startswith('C')])
     nN = len(df_results[df_results["Level"].str.startswith('N')])
     nG = len(df_results[df_results["Level"].str.startswith('G')])
-    if parameters.skipdiff==True:
-        nAF = len(df_results[df_results["Level"].str.startswith('AF')])
-        consoleout("okay", f'Taxonomy of {len(votus)} vOTUs (C:{nC}; N:{nN}; G:{nG}; AF:{nAF}) obtained in {time.time() - start_time} s.')
-    else:
-        nF = len(df_results[df_results["Level"].str.startswith('F')])
-        nA = len(df_results[df_results["Level"].str.startswith('A')])
-        consoleout("okay", f'Taxonomy of {len(votus)} vOTUs (C:{nC}; N:{nN}; G:{nG}; F:{nF}; A:{nA}) obtained in {time.time() - start_time} s.')
+    nF = len(df_results[df_results["Level"].str.startswith('F')])
+    nA = len(df_results[df_results["Level"].str.startswith('A')])
+    consoleout("okay", f'Taxonomy of {len(votus)} vOTUs (C:{nC}; N:{nN}; G:{nG}; F:{nF}; A:{nA}) obtained in {time.time() - start_time} s.')
     
     alloc, _ = tracemalloc.get_traced_memory()
     consoleout("meminfo", f"{alloc / 10**6} MB after 'df_results' loading.")
@@ -1263,9 +1292,9 @@ if __name__ == "__main__":
 
     consoleout("okay", f"Starting to generate {len(votus_ingraph)} subraphs with {parameters.threads} threads.")
     start_time = time.time()
-    subgraphCreator(graph, scaffolds_ingraph, parameters.output, parameters.suffix, max_weight, parameters.prefix, parameters.threads) 
+    subgraphCreator(graph, scaffolds_ingraph, parameters.output, parameters.suffix, max_weight, parameters.prefix, parameters.threads, parameters.view) 
     consoleout("okay", f'Generated {len(votus_ingraph)} interactive subgraphs in {time.time() - start_time} s.')
     
 
 
-    print(f"Ending graphanalyzer.py v{version} on {datetime.datetime.now()}")
+    print(f"\nEnding graphanalyzer.py v{version} on {datetime.datetime.now()}")
