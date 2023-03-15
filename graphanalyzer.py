@@ -1018,9 +1018,9 @@ if __name__ == "__main__":
     # This is how to test the program:
     """
     python  graphanalyzer.py \
-    --graph ./testinput/testinput1/c1.ntw \
-    --csv   ./testinput/testinput1/genome_by_genome_overview.csv \
-    --metas ./testinput/testinput1/1Nov2021_data_excluding_refseq.tsv \
+    --graph ./testinput/testinput-small/c1.ntw \
+    --csv   ./testinput/testinput-small/genome_by_genome_overview.csv \
+    --metas ./testinput/testinput-small/1Mar2023_data_excluding_refseq.tsv \
     --output      ./testoutput/ \
     --prefix      vOTU \
     --suffix      assemblerX \
