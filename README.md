@@ -7,6 +7,8 @@ This is `graphanalyzer.py`, a script designed to automatically interpret the out
 * [Interactive "single views"](https://github.com/lazzarigioele/graphanalyzer#interactive-single-views) - how to use interactive subgraphs
 * [Tutorial](https://github.com/lazzarigioele/graphanalyzer#tutorial) - how to interpret outputs, explained with real cases
 * [Bugs and future versions](https://github.com/lazzarigioele/graphanalyzer#bugs-and-future-versions) - how to keep in contact
+* [How to cite](https://github.com/lazzarigioele/graphanalyzer#how-to-cite)
+* [Known issues](https://github.com/lazzarigioele/graphanalyzer#known-issues)
 
 ![screenshot-v1.5.1.png](assets/screenshot-v1.5.1.png)
 
@@ -229,3 +231,13 @@ Finally, we want to spend few words on reliability of taxonomical classification
 ## Bugs and future versions
 
 Bugs can be reported to gioele.lazzari@univr.it. Future versions of graphanalyzer will be available at www.github.com/lazzarigioele/graphanalyzer/releases.
+
+## How to cite
+
+Pandolfo M., Telatin A., Lazzari G., Adriaenssens E. M., and Vitulo N. MetaPhage: an Automated Pipeline for Analyzing, Annotating, and Classifying Bacteriophages in Metagenomics Sequencing Data. mSystems. October 2022. https://doi.org/10.1128/msystems.00741-22
+
+If you use this script in your work, remember to specify its version.
+
+## Known issues
+
+* The header of `genome_by_genome_overview.csv` has changed in recent versions vConTACT2, causing `graphanalyzer.py` to fail with an error similar to `AttributeError: 'Series' object has no attribute 'VCSubcluster'`. Thanks to [madeleinevlt](https://github.com/madeleinevlt). Please note that `graphanalyzer.py` was tested with vConTACT2 v0.9.19 installed via [conda](https://anaconda.org/bioconda/vcontact2).
