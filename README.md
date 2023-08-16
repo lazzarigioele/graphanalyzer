@@ -58,7 +58,7 @@ conda install -c bioconda -c conda-forge graphanalyzer
 `--threads` (or `-t`) defines how many threads you want to use (default is 4). The higher this number, the quicker will be the execution.
 `--view` (or `-w`) defines which type of interactive "single views" to produce. It can be `2d` or `3d` (default is `2d`). 
 
-On this repository you can find `testinput.tar.gz`, which contains all the 3 input files described, and can be used to test `graphanalyzer.py`. Files contained in `testinput.tar.gz` were generated using a development version of "MetaPhage" (https://github.com/MattiaPandolfoVR/MetaPhage), a pipeline from the same group, using these SRA accessions: SRR8653043, SRR8653044, SRR8653201, SRR8653228, SRR8653178, SRR8653224, SRR8653227, SRR8653123, SRR8653095, SRR8653046, SRR8653124, SRR8652952, SRR8653202, SRR8653045, SRR8652951, SRR8653177, SRR8653042, SRR8653040, SRR8653094, SRR8653041, SRR8653229, SRR8653125, SRR8653225, SRR8653200, SRR8653226.
+On this repository you can find `testinput-small.tar.gz`, which contains all the 3 input files described, and can be used to test `graphanalyzer.py`. Files contained in `testinput-small.tar.gz` were generated using a development version of "MetaPhage" (https://github.com/MattiaPandolfoVR/MetaPhage), a pipeline from the same group, using these SRA accessions: SRR8653043, SRR8653044, SRR8653201, SRR8653228, SRR8653178, SRR8653224, SRR8653227, SRR8653123, SRR8653095, SRR8653046, SRR8653124, SRR8652952, SRR8653202, SRR8653045, SRR8652951, SRR8653177, SRR8653042, SRR8653040, SRR8653094, SRR8653041, SRR8653229, SRR8653125, SRR8653225, SRR8653200, SRR8653226.
 
 
 ## Main algorithm
@@ -127,7 +127,7 @@ Starting from v1.5, interactive "single views" can be produced also in 3D, using
 
 ## Tutorial
 
-In this section, we will examine some example vOTUs in order to better understand how `graphanalyzer.py` works. All vOTUs discussed in this section are contained here in `testinput.tar.gz`, so every user can test the script with the same data and obtain the same results.  
+In this section, we will examine some example vOTUs in order to better understand how `graphanalyzer.py` works. All vOTUs discussed in this section are contained here in `testinput-small.tar.gz`, so every user can test the script with the same data and obtain the same results.  
 
 Let's take for example vOTU_123. vConTACT2 put the Status "Outlier", so we know that vOTU_123 is present in the global graph, even though it's not clustered with other genomes. The results table reports:
 
