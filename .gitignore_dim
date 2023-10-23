@@ -1,0 +1,16 @@
+52M	./vc2test/.ipynb_checkpoints/1Oct2023_vConTACT2_gene_to_genome-checkpoint.csv
+444M	./vc2test/combined_g.faa
+444M	./vc2test/1Oct2023_vConTACT2_proteins.faa
+554M	./vc2test/outdir/modules.ntwk
+69M	./vc2test/outdir/vConTACT_proteins.csv
+467M	./vc2test/outdir/combined_g.dmnd
+2.5G	./vc2test/outdir/combined_g.self-diamond.tab
+1.4G	./vc2test/outdir/combined_g.self-diamond.tab.abc
+65M	./vc2test/outdir/c1.ntw
+873M	./vc2test/outdir/combined_g.self-diamond.tab.mci
+52M	./vc2test/combined_g2g.csv
+52M	./vc2test/1Oct2023_vConTACT2_gene_to_genome.csv
+64M	./testinput_tmp/testinput-big/.ipynb_checkpoints/c1-checkpoint.ntw
+64M	./testinput_tmp/testinput-big/c1.ntw
+47M	./testinput_tmp/testinput-small/c1.ntw
+65M	./testinput_tmp/testinput-new/c1.ntw

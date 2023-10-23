@@ -1,0 +1,11 @@
+#assets
+busco/busco
+testoutput*/
+testinput/*
+!testinput/*.tar.gz
+**/.DS_Store
+locals/
+
+vc2test/*
+testinput_tmp/*
+tmp.ipynb

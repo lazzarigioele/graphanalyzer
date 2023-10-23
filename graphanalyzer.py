@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Coded by Gioele Lazzari (gioele.lazzari@univr.it)
 software = "graphanalyzer.py"
-version = "1.5.1" 
+version = "1.6.0" 
 
 
 
@@ -47,7 +47,7 @@ def consoleout(lvl, msg):
         consoleout('error', 'consoleout() called with wrong lvl.')
     
 
- 
+
 def fillWithMetas(csv , metas):
 
     # vConTACT2 used with the method described in https://github.com/RyanCook94/inphared.pl
@@ -55,7 +55,7 @@ def fillWithMetas(csv , metas):
     # with GenBank accessions as genome names. Moreover columns “Genus”, “Family” and “Order” 
     # are filled with "Unassigned" so they need to be filled with the correct taxonomy. 
     # Fortunately, method described at https://github.com/RyanCook94/inphared.pl provides a 
-    # metadata table, 26Jan2021_data_excluding_refseq.tsv, containing the correct taxonomy for 
+    # metadata table, {date}_data_excluding_refseq.tsv, containing the correct taxonomy for 
     # every GenBank accession. 
 
     # The following function update the void columns of genome_by_genome_overview.csv with the
@@ -1018,14 +1018,24 @@ if __name__ == "__main__":
     # This is how to test the program:
     """
     python  graphanalyzer.py \
-    --graph ./testinput/testinput-small/c1.ntw \
-    --csv   ./testinput/testinput-small/genome_by_genome_overview.csv \
-    --metas ./testinput/testinput-small/1Mar2023_data_excluding_refseq.tsv \
+    --graph ./testinput_tmp/testinput-new/c1.ntw \
+    --csv   ./testinput_tmp/testinput-new/genome_by_genome_overview.csv \
+    --metas ./testinput_tmp/testinput-new/1Oct2023_data_excluding_refseq.tsv \
+    --output      ./testoutput/ \
+    --prefix      VIRSorter_NODE_ \
+    --suffix      assemblerX-new \
+    --view        2d \
+    -t 16
+    
+    python  graphanalyzer.py \
+    --graph ./testinput_tmp/testinput-big/c1.ntw \
+    --csv   ./testinput_tmp/testinput-big/genome_by_genome_overview.csv \
+    --metas ./testinput_tmp/testinput-big/1Mar2023_data_excluding_refseq.tsv \
     --output      ./testoutput/ \
     --prefix      vOTU \
-    --suffix      assemblerX \
+    --suffix      assemblerX-big \
     --view        2d \
-    -t 4
+    -t 16
     """ # eventually adding --pickle ./testoutput/assemblerX.pickle
 
 
@@ -1180,6 +1190,11 @@ if __name__ == "__main__":
     import pandas as pnd 
     start_time = time.time()
     csv = pnd.read_csv(csv_table, header = 0)
+    if 'preVC' in csv.columns:  # we are using a newer version of vConTACT2 (like v0.11.3)
+        csv['VC Subcluster'] = csv['VC']
+        csv['VC'] = csv['preVC'].apply(lambda x: x[3:] if type(x)==str else x)  # eg 'preVC_16' --> 'VC_16'
+        csv = csv.rename(columns={'VC Size': 'Size'})
+        csv  = csv.drop('preVC', axis=1)
     consoleout('okay', f'{parameters.csv} loaded into memory in {time.time() - start_time} s.')
     
     # load metas pandas dataframe:
