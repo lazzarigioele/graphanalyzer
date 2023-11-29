@@ -4,7 +4,7 @@ This is `graphanalyzer.py`, a script designed to automatically interpret the out
 * [Installation and usage](https://github.com/lazzarigioele/graphanalyzer#installation-and-usage) - how to get started
 * [Main algorithm](https://github.com/lazzarigioele/graphanalyzer#main-algorithm) - description of what's under the hood
 * [Results files](https://github.com/lazzarigioele/graphanalyzer#results-files) - description of the output files provided
-* [Interactive "single views"](https://github.com/lazzarigioele/graphanalyzer#interactive-single-views) - how to use interactive subgraphs
+* [Interactive subgraphs](https://github.com/lazzarigioele/graphanalyzer#interactive-subgraphs) - how to use interactive subgraphs
 * [Tutorial](https://github.com/lazzarigioele/graphanalyzer#tutorial) - how to interpret outputs, explained with real cases
 * [Bugs and future versions](https://github.com/lazzarigioele/graphanalyzer#bugs-and-future-versions) - how to keep in contact
 * [How to cite](https://github.com/lazzarigioele/graphanalyzer#how-to-cite)
@@ -135,17 +135,17 @@ The `graphanalyzer.py` script produces several outputs in the `--output` folder.
 
 - Other debug files not useful for the final user. 
 
-## Interactive graphs
+## Interactive subgraphs
 
-This program also produces an interactive sub-graph for each of the vOTUs contained in the whole graph. They will be placed in `single-views/vOTU_X.html`. As they contain much less nodes and edges then the whole graph, they are lighter to be rendered and thus usable in normal computers.
+This program also produces an interactive subgraph for each of the vOTUs contained in the whole graph. They will be placed in `single-views/vOTU_X.html`. As they contain much less nodes and edges then the whole graph, they are lighter to be rendered and thus usable in normal computers.
 
-Each sub-graph contains the vOTU of interest in red and all its 1st-level neighbors, that are the nodes directly connected to it. Rounded nodes are other vOTUs, while triangular nodes are reference genomes. If present, the reference genome from which the vOTUs inherit the taxonomy is depicted in green. 
+Each subgraph contains the vOTU of interest in red and all its 1st-level neighbors, that are the nodes directly connected to it. Rounded nodes are other vOTUs, while triangular nodes are reference genomes. If present, the reference genome from which the vOTUs inherit the taxonomy is depicted in green. 
 
 Generally nodes are violet colored, while those taking part of the same viral cluster of the vOTU are colored differently. If the vOTU is 'Clustered', the user will find genomes of the same VC_z_k in orange, and genomes of others VC_z in yellow. If the vOTU is 'Clustered/Singleton', genomes of the same VC_z are shown in yellow. If the vOTU is 'Overlap', genomes of every overlapping VC_z are shown in yellow. 
 
 The user can hover each node with the mouse to show the attributes of that node (like Species, Accession, VC, Level, Genus, Family, Host; previously described); the attribute "A6_Weight" is the weight of the edge connecting that node to the current vOTU. 
 
-Nodes are disposed approximately respecting the edges' weight. This tend to spatially group nodes in their respective clusters. Moreover, color and width of each edge is proportional to its weight and scaled to 300, that should be the heaviest weight possible: this makes sub-graphs comparable to each other. We have applyed the following style to allow clusters to better pop-up and be visible at first sight: 
+Nodes are disposed approximately respecting the edges' weight. This tend to spatially group nodes in their respective clusters. Moreover, color and width of each edge is proportional to its weight and scaled to 300, that should be the heaviest weight possible: this makes subgraphs comparable to each other. We have applyed the following style to allow clusters to better pop-up and be visible at first sight: 
 
 - ![#98A9D7](https://placehold.co/15x15/98A9D7/98A9D7.png) and width `1px` if 0 < weight <= 50.
 - ![#8ED2CD](https://placehold.co/15x15/8ED2CD/8ED2CD.png) and width `2px` if 50 < weight <= 100.
